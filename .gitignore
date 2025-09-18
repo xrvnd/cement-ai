@@ -54,3 +54,4 @@ temp/
 # Cache directories
 .cache
 .parcel-cache
+backend/venv311/
