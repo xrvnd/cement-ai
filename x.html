@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CementAI - Real vs Digital Twin (Kiln + Mill)</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;
+    background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+    color:#21303a;
+    min-height:100vh;
+    padding:18px;
+  }
+  .header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:rgba(255,255,255,0.95);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.12);margin-bottom:12px}
+  .logo{font-weight:700;font-size:18px}
+  .phase-indicator{display:flex;gap:8px}
+  .phase-step{padding:8px 12px;border-radius:18px;font-size:13px}
+  .phase-active{background:linear-gradient(135deg,#74b9ff,#0984e3);color:white}
+  .phase-inactive{background:rgba(189,195,199,0.28);color:#7f8c8d}
+  .ai-status{display:flex;align-items:center;gap:8px;background:#27ae60;padding:8px 12px;border-radius:18px;color:white;font-weight:600}
+
+  .top-controls{display:flex;gap:12px;align-items:center;margin:12px 0;color:white}
+  .main-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:18px;height:calc(100vh - 220px)}
+  @media (max-width:1200px){.main-grid{grid-template-columns:1fr;height:auto}}
+
+  .left-column{display:flex;flex-direction:column;gap:12px;height:100%}
+  .card{background:rgba(255,255,255,0.95);border-radius:12px;padding:12px;box-shadow:0 6px 18px rgba(0,0,0,0.08);overflow:hidden}
+  .twin-rows{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:900px){.twin-rows{grid-template-columns:1fr}}
+
+  .title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .status-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:8px}
+  .status-item{background:#f8f9fa;padding:10px;border-radius:8px;text-align:center;border-left:4px solid #74b9ff}
+  .status-value{font-weight:700;font-size:16px}
+  .status-label{font-size:12px;color:#7f8c8d;margin-top:6px}
+
+  /* 3D Kiln Model Container */
+  .kiln-container{
+    position:relative;
+    width:100%;
+    height:350px;
+    background:#f8f9fa;
+    border-radius:12px;
+    overflow:hidden;
+    border:2px solid #dee2e6;
+  }
+  
+  .sketchfab-embed-wrapper{
+    position:relative;
+    width:100%;
+    height:100%;
+    border-radius:10px;
+    overflow:hidden;
+  }
+  
+  .sketchfab-embed-wrapper iframe{
+    width:100%;
+    height:100%;
+    border:none;
+    border-radius:10px;
+  }
+  
+  .sketchfab-embed-wrapper p{
+    display:none; /* Hide the attribution for cleaner look */
+  }
+  
+  /* Interactive data pointers overlaid on 3D model */
+  .data-pointer{
+    position:absolute;
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    cursor:pointer;
+    transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border:3px solid rgba(255,255,255,0.9);
+    box-shadow:0 4px 12px rgba(0,0,0,0.3), 0 0 0 0 rgba(116,185,255,0.7);
+    z-index:15;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:8px;
+    font-weight:700;
+    color:white;
+    text-shadow:0 1px 2px rgba(0,0,0,0.8);
+  }
+  
+  .data-pointer:hover{
+    transform:scale(1.4);
+    box-shadow:0 6px 20px rgba(0,0,0,0.4), 0 0 0 10px rgba(116,185,255,0.2);
+    animation:pulse-ring 2s infinite;
+  }
+  
+  .data-pointer::before{
+    content:'';
+    position:absolute;
+    width:100%;
+    height:100%;
+    border-radius:50%;
+    background:inherit;
+    opacity:0.8;
+  }
+  
+  .data-pointer::after{
+    content:attr(data-value);
+    position:absolute;
+    top:-35px;
+    left:50%;
+    transform:translateX(-50%);
+    background:rgba(0,0,0,0.9);
+    color:white;
+    padding:6px 10px;
+    border-radius:6px;
+    font-size:11px;
+    font-weight:600;
+    opacity:0;
+    transition:all 0.3s ease;
+    white-space:nowrap;
+    pointer-events:none;
+    box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  }
+  
+  .data-pointer:hover::after{
+    opacity:1;
+    transform:translateX(-50%) translateY(-5px);
+  }
+  
+  /* Positioned data points for different kiln zones */
+  .pointer-feed-inlet{top:60px;right:25px;background:#6a5acd}
+  .pointer-preheating{top:80px;right:150px;background:#74b9ff}
+  .pointer-heating-transition{top:120px;right:200px;background:#ff7675}
+  .pointer-burning-zone{top:140px;right:280px;background:#fd79a8}
+  .pointer-sintering{top:130px;right:320px;background:#e84393}
+  .pointer-cooling{top:110px;right:380px;background:#fdcb6e}
+  .pointer-discharge{top:90px;right:450px;background:#00b894}
+  .pointer-exhaust{top:40px;left:80px;background:#a29bfe}
+  .pointer-motor-load{bottom:40px;right:30px;background:#00cec9}
+  .pointer-support-bearing{bottom:60px;right:200px;background:#ffeaa7}
+  
+  @keyframes pulse-ring{
+    0%{
+      box-shadow:0 6px 20px rgba(0,0,0,0.4), 0 0 0 0px rgba(116,185,255,0.7);
+    }
+    70%{
+      box-shadow:0 6px 20px rgba(0,0,0,0.4), 0 0 0 15px rgba(116,185,255,0);
+    }
+    100%{
+      box-shadow:0 6px 20px rgba(0,0,0,0.4), 0 0 0 0px rgba(116,185,255,0);
+    }
+  }
+
+  .right-column{display:flex;flex-direction:column;gap:12px;height:100%;overflow:auto}
+  .panel-section{background:rgba(255,255,255,0.95);padding:12px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+  .section-title{font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .sensor-card{background:#f8f9fa;padding:10px;border-radius:8px;border-left:4px solid #74b9ff}
+  .sensor-value{font-weight:700}
+  .sensor-label{font-size:12px;color:#7f8c8d}
+
+  .scenario-controls{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+  .scenario-select{padding:10px;border-radius:8px;border:2px solid #ddd;background:white;flex:1}
+  .run-scenario{padding:10px 12px;border-radius:8px;border:none;background:linear-gradient(135deg,#74b9ff,#0984e3);color:white;cursor:pointer;font-weight:700}
+
+  .control-row{display:flex;gap:8px;align-items:center}
+  .small-input{padding:8px;border-radius:6px;border:1px solid #ddd}
+
+  .tooltip{position:absolute;display:none;padding:8px 10px;background:rgba(255,255,255,0.98);border:1px solid #ddd;border-radius:6px;pointer-events:none;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,0.12);z-index:1500}
+
+  .modal{position:fixed;inset:0;display:none;justify-content:center;align-items:center;background:rgba(0,0,0,0.6);z-index:2000;padding:18px}
+  .modal .content{background:white;border-radius:10px;padding:18px;max-width:720px;width:100%;max-height:80vh;overflow:auto}
+  .close{float:right;cursor:pointer}
+
+  .capabilities{font-size:13px;line-height:1.35}
+  .techstack{font-size:13px;color:#3b3b3b}
+
+  .diverge-flash{animation:divergeFlash 1s ease-in-out 0s 3}
+  @keyframes divergeFlash {0%{filter:none}50%{filter:brightness(1.6)}100%{filter:none}}
+
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+  
+  /* Temperature zones animation */
+  @keyframes heatFlow{0%{opacity:0.6}50%{opacity:1}100%{opacity:0.6}}
+  .kiln-diagram::before{
+    content:'';
+    position:absolute;
+    top:0;
+    left:0;
+    right:0;
+    bottom:0;
+    background:linear-gradient(90deg,transparent 0%,rgba(255,69,0,0.1) 20%,rgba(255,140,0,0.2) 50%,rgba(255,215,0,0.1) 80%,transparent 100%);
+    animation:heatFlow 3s ease-in-out infinite;
+    pointer-events:none;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🏭 CementAI — Real vs Digital Twin</div>
+    <div class="phase-indicator">
+      <div class="phase-step phase-active">📍 Phase 1: Kiln Twin</div>
+      <div class="phase-step phase-inactive">🔄 Phase 2: Mill Integration</div>
+      <div class="phase-step phase-inactive">🏭 Phase 3: Full Plant</div>
+    </div>
+    <div class="ai-status"><div style="width:8px;height:8px;background:#fff;border-radius:50%;margin-right:6px;animation:pulse 2s infinite;"></div>Gemini AI Active</div>
+  </div>
+
+  <div class="top-controls">
+    <label style="color:white;font-weight:700">Sync Digital with Real:
+      <input id="syncToggle" type="checkbox" checked style="margin-left:8px">
+    </label>
+    <button id="exportCSV" style="padding:8px;border-radius:8px;border:none;cursor:pointer">Export Snapshot CSV</button>
+    <div style="margin-left:auto;color:#fff">Tip: press <strong>Ctrl+D</strong> for Demo Mode</div>
+  </div>
+
+  <div class="main-grid">
+    <div class="left-column">
+      <div class="card">
+        <div class="title-row">
+          <div>
+            <strong style="font-size:16px">🔥 Rotary Kiln — Real ↔ Digital</strong><br>
+            <small style="color:#7f8c8d">Interactive kiln diagram with live sensor data. Hover sensors for values, click for history.</small>
+          </div>
+          <div style="text-align:right"><small style="color:#7f8c8d">Synced: <strong id="syncStatus">ON</strong></small></div>
+        </div>
+
+        <div class="status-bar" style="margin-bottom:10px">
+          <div class="status-item"><div class="status-value" id="kiln-temp">1450°C</div><div class="status-label">Burning Zone</div></div>
+          <div class="status-item"><div class="status-value" id="fuel-rate">45.2 kg/s</div><div class="status-label">Fuel Rate</div></div>
+          <div class="status-item"><div class="status-value" id="production">98.5%</div><div class="status-label">Production Rate</div></div>
+          <div class="status-item"><div class="status-value" id="efficiency">89.4%</div><div class="status-label">Thermal Efficiency</div></div>
+        </div>
+
+        <div class="twin-rows">
+          <!-- Real World Kiln -->
+          <div class="card" style="padding:8px">
+            <h4 style="text-align:center;margin-bottom:6px">🌍 Real-World Kiln</h4>
+            <div class="kiln-container" id="realKilnContainer">
+              <div class="sketchfab-embed-wrapper">
+                <iframe title="Silver-Lead Mine, Waelz Rotary Kiln" frameborder="0" allowfullscreen mozallowfullscreen="true" webkitallowfullscreen="true" allow="autoplay; fullscreen; xr-spatial-tracking" xr-spatial-tracking execution-while-out-of-viewport execution-while-not-rendered web-share src="https://sketchfab.com/models/e6b80e0b72fe43e58cb942b3effd623c/embed">
+                </iframe>
+              </div>
+              <!-- Interactive data pointers positioned over 3D model -->
+              <div class="data-pointer pointer-feed-inlet" data-sensor="temp1" data-value="1245°C" title="Feed Inlet Temperature">1</div>
+              <div class="data-pointer pointer-preheating" data-sensor="temp2" data-value="850°C" title="Preheating Zone">2</div>
+              <div class="data-pointer pointer-heating-transition" data-sensor="temp3" data-value="1350°C" title="Heating Transition">3</div>
+              <div class="data-pointer pointer-burning-zone" data-sensor="vibration" data-value="1850°C" title="Burning/Sintering Zone">4</div>
+              <div class="data-pointer pointer-sintering" data-sensor="load" data-value="1750°C" title="Sintering Process">5</div>
+              <div class="data-pointer pointer-cooling" data-sensor="emission" data-value="1120°C" title="Cooling Zone">6</div>
+              <div class="data-pointer pointer-discharge" data-sensor="temp1" data-value="400°C" title="Material Discharge">7</div>
+              <div class="data-pointer pointer-exhaust" data-sensor="emission" data-value="245mg/Nm³" title="NOx Exhaust">8</div>
+              <div class="data-pointer pointer-motor-load" data-sensor="load" data-value="87%" title="Drive Motor Load">9</div>
+              <div class="data-pointer pointer-support-bearing" data-sensor="vibration" data-value="2.3mm/s" title="Support Bearing Vibration">10</div>
+            </div>
+            
+            <div class="status-bar" style="margin-top:8px">
+              <div class="status-item"><div class="status-value" id="real-kiln-temp">1450°C</div><div class="status-label">Burning Zone</div></div>
+              <div class="status-item"><div class="status-value" id="real-fuel-rate">45.2 kg/s</div><div class="status-label">Fuel Rate</div></div>
+              <div class="status-item"><div class="status-value" id="real-production">98.5%</div><div class="status-label">Production</div></div>
+              <div class="status-item"><div class="status-value" id="real-efficiency">89.4%</div><div class="status-label">Thermal Eff.</div></div>
+            </div>
+          </div>
+
+          <!-- Digital Twin -->
+          <div class="card" style="padding:8px">
+            <h4 style="text-align:center;margin-bottom:6px">�� Digital Twin</h4>
+            <div class="kiln-container" id="digitalKilnContainer">
+              <div class="sketchfab-embed-wrapper">
+                <iframe title="Silver-Lead Mine, Waelz Rotary Kiln - Digital Twin" frameborder="0" allowfullscreen mozallowfullscreen="true" webkitallowfullscreen="true" allow="autoplay; fullscreen; xr-spatial-tracking" xr-spatial-tracking execution-while-out-of-viewport execution-while-not-rendered web-share src="https://sketchfab.com/models/e6b80e0b72fe43e58cb942b3effd623c/embed" style="filter:hue-rotate(15deg) brightness(0.95) contrast(1.1)">
+                </iframe>
+              </div>
+              <!-- Digital twin data pointers with potential variance indicators -->
+              <div class="data-pointer pointer-feed-inlet digital-sensor" data-sensor="temp1" data-value="1245°C" title="Digital: Feed Inlet Temperature">1</div>
+              <div class="data-pointer pointer-preheating digital-sensor" data-sensor="temp2" data-value="850°C" title="Digital: Preheating Zone">2</div>
+              <div class="data-pointer pointer-heating-transition digital-sensor" data-sensor="temp3" data-value="1350°C" title="Digital: Heating Transition">3</div>
+              <div class="data-pointer pointer-burning-zone digital-sensor" data-sensor="vibration" data-value="1850°C" title="Digital: Burning/Sintering Zone">4</div>
+              <div class="data-pointer pointer-sintering digital-sensor" data-sensor="load" data-value="1750°C" title="Digital: Sintering Process">5</div>
+              <div class="data-pointer pointer-cooling digital-sensor" data-sensor="emission" data-value="1120°C" title="Digital: Cooling Zone">6</div>
+              <div class="data-pointer pointer-discharge digital-sensor" data-sensor="temp1" data-value="400°C" title="Digital: Material Discharge">7</div>
+              <div class="data-pointer pointer-exhaust digital-sensor" data-sensor="emission" data-value="245mg/Nm³" title="Digital: NOx Exhaust">8</div>
+              <div class="data-pointer pointer-motor-load digital-sensor" data-sensor="load" data-value="87%" title="Digital: Drive Motor Load">9</div>
+              <div class="data-pointer pointer-support-bearing digital-sensor" data-sensor="vibration" data-value="2.3mm/s" title="Digital: Support Bearing Vibration">10</div>
+            </div>
+
+            <div class="status-bar" style="margin-top:8px">
+              <div class="status-item"><div class="status-value" id="digital-kiln-temp">1450°C</div><div class="status-label">Burning Zone</div></div>
+              <div class="status-item"><div class="status-value" id="digital-fuel-rate">45.2 kg/s</div><div class="status-label">Fuel Rate</div></div>
+              <div class="status-item"><div class="status-value" id="digital-production">98.5%</div><div class="status-label">Production</div></div>
+              <div class="status-item"><div class="status-value" id="digital-efficiency">89.4%</div><div class="status-label">Thermal Eff.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mill Integration card (unchanged) -->
+      <div class="card">
+        <div class="title-row">
+          <div><strong style="font-size:16px">⚙️ Mill Integration (Phase 2)</strong><br><small style="color:#7f8c8d">Grinding & feed control — real vs digital</small></div>
+          <div><small style="color:#7f8c8d">Status: <strong>Not started</strong></small></div>
+        </div>
+
+        <div style="display:flex;gap:12px">
+          <div style="flex:1" class="card">
+            <h4 style="text-align:center;margin-bottom:6px">🌍 Real Mill</h4>
+            <svg viewBox="0 0 600 160" style="width:100%;height:120px" aria-hidden="true">
+              <rect x="40" y="40" width="520" height="70" rx="10" fill="#c9d6e3"/>
+              <g class="mill-sensor" data-sensor="mill-feed" transform="translate(120,70)"><circle r="8" fill="#6a5acd"/><text y="25" text-anchor="middle" font-size="10">Feed</text></g>
+              <g class="mill-sensor" data-sensor="mill-pressure" transform="translate(300,70)"><circle r="8" fill="#00b894"/><text y="25" text-anchor="middle" font-size="10">Press</text></g>
+              <g class="mill-sensor" data-sensor="mill-particle" transform="translate(480,70)"><circle r="8" fill="#ff6b6b"/><text y="25" text-anchor="middle" font-size="10">PSD</text></g>
+            </svg>
+            <div class="status-bar" style="margin-top:8px">
+              <div class="status-item"><div class="status-value" id="real-feed-rate">12.4 t/h</div><div class="status-label">Feed Rate</div></div>
+              <div class="status-item"><div class="status-value" id="real-mill-press">2.1 bar</div><div class="status-label">Pressure</div></div>
+              <div class="status-item"><div class="status-value" id="real-psd">12 µm D50</div><div class="status-label">Particle Size</div></div>
+              <div class="status-item"><div class="status-value" id="real-mill-eff">78%</div><div class="status-label">Grinding Eff.</div></div>
+            </div>
+          </div>
+
+          <div style="flex:1" class="card">
+            <h4 style="text-align:center;margin-bottom:6px">🖥 Digital Mill</h4>
+            <svg viewBox="0 0 600 160" style="width:100%;height:120px" aria-hidden="true">
+              <rect x="40" y="40" width="520" height="70" rx="10" fill="#fff2cc"/>
+              <g class="mill-sensor-digital" data-sensor="mill-feed" transform="translate(120,70)"><circle r="8" fill="#6a5acd"/><text y="25" text-anchor="middle" font-size="10">Feed</text></g>
+              <g class="mill-sensor-digital" data-sensor="mill-pressure" transform="translate(300,70)"><circle r="8" fill="#00b894"/><text y="25" text-anchor="middle" font-size="10">Press</text></g>
+              <g class="mill-sensor-digital" data-sensor="mill-particle" transform="translate(480,70)"><circle r="8" fill="#ff6b6b"/><text y="25" text-anchor="middle" font-size="10">PSD</text></g>
+            </svg>
+            <div class="status-bar" style="margin-top:8px">
+              <div class="status-item"><div class="status-value" id="digital-feed-rate">12.4 t/h</div><div class="status-label">Feed Rate</div></div>
+              <div class="status-item"><div class="status-value" id="digital-mill-press">2.1 bar</div><div class="status-label">Pressure</div></div>
+              <div class="status-item"><div class="status-value" id="digital-psd">12 µm D50</div><div class="status-label">Particle Size</div></div>
+              <div class="status-item"><div class="status-value" id="digital-mill-eff">78%</div><div class="status-label">Grinding Eff.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Capabilities & Tech Stack summary -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1">
+            <h4 style="margin-bottom:8px">🎯 AI Capabilities</h4>
+            <div class="capabilities">
+              • Real-time sensor data fusion & validation<br>
+              • Predictive maintenance alerts<br>
+              • Thermal efficiency optimization<br>
+              • Emission control & compliance<br>
+              • Production rate forecasting<br>
+              • Anomaly detection & root cause analysis
+            </div>
+          </div>
+          <div style="flex:1;margin-left:20px">
+            <h4 style="margin-bottom:8px">🛠 Tech Stack</h4>
+            <div class="techstack">
+              <strong>Frontend:</strong> HTML5, CSS3, JavaScript (ES6+)<br>
+              <strong>3D Visualization:</strong> Sketchfab API, WebGL<br>
+              <strong>Data Processing:</strong> Real-time WebSocket streams<br>
+              <strong>AI/ML:</strong> TensorFlow.js, Custom algorithms<br>
+              <strong>Backend:</strong> Node.js, Python (Flask/FastAPI)<br>
+              <strong>Database:</strong> InfluxDB, PostgreSQL<br>
+              <strong>IoT:</strong> MQTT, OPC UA protocols
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-column">
+      <!-- Real-time Sensor Data Panel -->
+      <div class="panel-section">
+        <div class="section-title">
+          📊 Live Sensor Data
+          <span style="font-size:12px;color:#7f8c8d;margin-left:auto">Updated: <span id="lastUpdate">Just now</span></span>
+        </div>
+        <div class="sensor-grid">
+          <div class="sensor-card">
+            <div class="sensor-value" id="temp1">1245°C</div>
+            <div class="sensor-label">Feed Inlet Temperature</div>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-value" id="temp2">850°C</div>
+            <div class="sensor-label">Preheating Zone</div>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-value" id="temp3">1350°C</div>
+            <div class="sensor-label">Heating Transition</div>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-value" id="vibration">2.3mm/s</div>
+            <div class="sensor-label">Support Bearing Vibration</div>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-value" id="load">87%</div>
+            <div class="sensor-label">Drive Motor Load</div>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-value" id="emission">245mg/Nm³</div>
+            <div class="sensor-label">NOx Emissions</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Scenario Control Panel -->
+      <div class="panel-section">
+        <div class="section-title">🤖 AI Scenario Control</div>
+        <div class="scenario-controls">
+          <select class="scenario-select" id="scenarioSelect">
+            <option value="normal">Normal Operation</option>
+            <option value="optimization">Efficiency Optimization</option>
+            <option value="maintenance">Predictive Maintenance</option>
+            <option value="emission">Emission Control</option>
+            <option value="emergency">Emergency Shutdown</option>
+          </select>
+          <button class="run-scenario" id="runScenario">Run Scenario</button>
+        </div>
+        
+        <div style="margin-top:12px">
+          <div class="control-row">
+            <label>Target Temperature:</label>
+            <input type="number" class="small-input" id="targetTemp" value="1450" min="1200" max="1800">
+            <span>°C</span>
+          </div>
+          <div class="control-row" style="margin-top:8px">
+            <label>Fuel Rate:</label>
+            <input type="number" class="small-input" id="targetFuel" value="45.2" min="30" max="60" step="0.1">
+            <span>kg/s</span>
+          </div>
+          <div class="control-row" style="margin-top:8px">
+            <label>Production Rate:</label>
+            <input type="number" class="small-input" id="targetProduction" value="98.5" min="80" max="100" step="0.1">
+            <span>%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Digital Twin Analytics -->
+      <div class="panel-section">
+        <div class="section-title">📈 Digital Twin Analytics</div>
+        <div style="font-size:13px;line-height:1.4">
+          <div style="margin-bottom:8px">
+            <strong>Model Accuracy:</strong> <span id="modelAccuracy" style="color:#27ae60">94.2%</span>
+          </div>
+          <div style="margin-bottom:8px">
+            <strong>Prediction Horizon:</strong> <span id="predictionHorizon">24 hours</span>
+          </div>
+          <div style="margin-bottom:8px">
+            <strong>Data Points Processed:</strong> <span id="dataPoints">1,247,892</span>
+          </div>
+          <div style="margin-bottom:8px">
+            <strong>Last Model Update:</strong> <span id="modelUpdate">2 hours ago</span>
+          </div>
+          <div style="margin-bottom:8px">
+            <strong>Anomalies Detected:</strong> <span id="anomalies" style="color:#e74c3c">3</span>
+          </div>
+          <div>
+            <strong>Optimization Opportunities:</strong> <span id="optimizations" style="color:#f39c12">7</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Status -->
+      <div class="panel-section">
+        <div class="section-title">⚙️ System Status</div>
+        <div style="font-size:13px;line-height:1.4">
+          <div style="margin-bottom:6px">
+            <span style="color:#27ae60">●</span> Kiln Operation: <strong>Normal</strong>
+          </div>
+          <div style="margin-bottom:6px">
+            <span style="color:#27ae60">●</span> Data Collection: <strong>Active</strong>
+          </div>
+          <div style="margin-bottom:6px">
+            <span style="color:#27ae60">●</span> AI Processing: <strong>Online</strong>
+          </div>
+          <div style="margin-bottom:6px">
+            <span style="color:#f39c12">●</span> Maintenance Alert: <strong>Bearing #3</strong>
+          </div>
+          <div style="margin-bottom:6px">
+            <span style="color:#27ae60">●</span> Safety Systems: <strong>All Clear</strong>
+          </div>
+          <div>
+            <span style="color:#27ae60">●</span> Environmental: <strong>Compliant</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tooltip container -->
+  <div id="tooltip" class="tooltip"></div>
+
+  <!-- Modal for detailed sensor history -->
+  <div id="sensorModal" class="modal">
+    <div class="content">
+      <span class="close" onclick="closeModal()">&times;</span>
+      <h3 id="modalTitle">Sensor History</h3>
+      <div id="modalContent">
+        <p>Loading sensor data...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global variables
+    let sensorData = {
+      temp1: { value: 1245, unit: '°C', trend: 'up' },
+      temp2: { value: 850, unit: '°C', trend: 'stable' },
+      temp3: { value: 1350, unit: '°C', trend: 'up' },
+      vibration: { value: 2.3, unit: 'mm/s', trend: 'down' },
+      load: { value: 87, unit: '%', trend: 'stable' },
+      emission: { value: 245, unit: 'mg/Nm³', trend: 'down' }
+    };
+
+    let digitalData = {
+      temp1: { value: 1245, unit: '°C', trend: 'up' },
+      temp2: { value: 850, unit: '°C', trend: 'stable' },
+      temp3: { value: 1350, unit: '°C', trend: 'up' },
+      vibration: { value: 2.3, unit: 'mm/s', trend: 'down' },
+      load: { value: 87, unit: '%', trend: 'stable' },
+      emission: { value: 245, unit: 'mg/Nm³', trend: 'down' }
+    };
+
+    let lastRender = { sensors: {} };
+    let elementMap = {
+      temp1: 'temp1',
+      temp2: 'temp2', 
+      temp3: 'temp3',
+      vibration: 'vibration',
+      load: 'load',
+      emission: 'emission'
+    };
+
+    // Initialize the application
+    function init() {
+      setupEventListeners();
+      startDataSimulation();
+      updateLastUpdate();
+      setInterval(updateLastUpdate, 1000);
+    }
+
+    // Setup event listeners
+    function setupEventListeners() {
+      // Sync toggle
+      document.getElementById('syncToggle').addEventListener('change', function(e) {
+        const status = e.target.checked ? 'ON' : 'OFF';
+        document.getElementById('syncStatus').textContent = status;
+      });
+
+      // Export CSV
+      document.getElementById('exportCSV').addEventListener('click', exportData);
+
+      // Scenario controls
+      document.getElementById('runScenario').addEventListener('click', runScenario);
+
+      // Data pointer interactions
+      document.querySelectorAll('.data-pointer').forEach(pointer => {
+        pointer.addEventListener('click', showSensorHistory);
+      });
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'd') {
+          e.preventDefault();
+          toggleDemoMode();
+        }
+      });
+
+      // Modal close
+      window.addEventListener('click', function(e) {
+        const modal = document.getElementById('sensorModal');
+        if (e.target === modal) {
+          closeModal();
+        }
+      });
+    }
+
+    // Simulate real-time data updates
+    function startDataSimulation() {
+      setInterval(() => {
+        // Update real sensor data with small random variations
+        Object.keys(sensorData).forEach(key => {
+          const current = sensorData[key];
+          const variation = (Math.random() - 0.5) * 0.02; // ±1% variation
+          current.value = Math.round(current.value * (1 + variation) * 10) / 10;
+          
+          // Update trend randomly
+          if (Math.random() < 0.1) {
+            const trends = ['up', 'down', 'stable'];
+            current.trend = trends[Math.floor(Math.random() * trends.length)];
+          }
+        });
+
+        // Update digital twin data (with potential divergence)
+        const syncEnabled = document.getElementById('syncToggle').checked;
+        if (syncEnabled) {
+          Object.keys(digitalData).forEach(key => {
+            digitalData[key] = { ...sensorData[key] };
+          });
+        } else {
+          // Simulate digital twin divergence
+          Object.keys(digitalData).forEach(key => {
+            const current = digitalData[key];
+            const variation = (Math.random() - 0.5) * 0.05; // ±2.5% variation
+            current.value = Math.round(current.value * (1 + variation) * 10) / 10;
+          });
+        }
+
+        renderOnce();
+      }, 2000); // Update every 2 seconds
+    }
+
+    // Render function (already defined at the top of the file)
+    function renderOnce(){
+      // sensor cards (real)
+      Object.keys(sensorData).forEach(k=>{
+        const id = elementMap[k];
+        if (!id) return;
+        const el = document.getElementById(id);
+        if (!el) return;
+        const cur = `${sensorData[k].value}${sensorData[k].unit}|${sensorData[k].trend}`;
+        if (lastRender.sensors[id] !== cur) {
+          lastRender.sensors[id] = cur;
+          const sym = sensorData[k].trend === 'up' ? '↑' : sensorData[k].trend === 'down' ? '↓' : '→';
+          el.innerHTML = `${sensorData[k].value}${sensorData[k].unit} <span style="font-weight:700;color:#7f8c8d;margin-left:6px">${sym}</span>`;
+        }
+      });
+    
+      // Update 3D model data pointers with real-time values
+      const sensorPointerMap = {
+        temp1: '.pointer-feed-inlet, .pointer-discharge',
+        temp2: '.pointer-preheating',
+        temp3: '.pointer-heating-transition',
+        vibration: '.pointer-support-bearing',
+        load: '.pointer-motor-load',
+        emission: '.pointer-exhaust'
+      };
+      
+      Object.keys(sensorPointerMap).forEach(sensorKey => {
+        const realValue = sensorData[sensorKey];
+        const digitalValue = digitalData[sensorKey];
+        if (!realValue) return;
+        
+        // Update real pointers
+        const realPointers = document.querySelectorAll(`#realKilnContainer ${sensorPointerMap[sensorKey]}`);
+        realPointers.forEach(pointer => {
+          pointer.setAttribute('data-value', `${realValue.value}${realValue.unit}`);
+        });
+        
+        // Update digital pointers
+        const digitalPointers = document.querySelectorAll(`#digitalKilnContainer ${sensorPointerMap[sensorKey]}`);
+        digitalPointers.forEach(pointer => {
+          pointer.setAttribute('data-value', `${digitalValue.value}${digitalValue.unit}`);
+        });
+      });
+
+      // Update status bars
+      updateStatusBars();
+    }
+
+    // Update status bars with current values
+    function updateStatusBars() {
+      // Real kiln status
+      document.getElementById('real-kiln-temp').textContent = `${sensorData.temp3.value}°C`;
+      document.getElementById('real-fuel-rate').textContent = `${(sensorData.load.value * 0.52).toFixed(1)} kg/s`;
+      document.getElementById('real-production').textContent = `${(sensorData.load.value * 1.13).toFixed(1)}%`;
+      document.getElementById('real-efficiency').textContent = `${(89.4 + (Math.random() - 0.5) * 2).toFixed(1)}%`;
+
+      // Digital kiln status
+      document.getElementById('digital-kiln-temp').textContent = `${digitalData.temp3.value}°C`;
+      document.getElementById('digital-fuel-rate').textContent = `${(digitalData.load.value * 0.52).toFixed(1)} kg/s`;
+      document.getElementById('digital-production').textContent = `${(digitalData.load.value * 1.13).toFixed(1)}%`;
+      document.getElementById('digital-efficiency').textContent = `${(89.4 + (Math.random() - 0.5) * 2).toFixed(1)}%`;
+
+      // Main status bar
+      document.getElementById('kiln-temp').textContent = `${sensorData.temp3.value}°C`;
+      document.getElementById('fuel-rate').textContent = `${(sensorData.load.value * 0.52).toFixed(1)} kg/s`;
+      document.getElementById('production').textContent = `${(sensorData.load.value * 1.13).toFixed(1)}%`;
+      document.getElementById('efficiency').textContent = `${(89.4 + (Math.random() - 0.5) * 2).toFixed(1)}%`;
+    }
+
+    // Update last update timestamp
+    function updateLastUpdate() {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString();
+      document.getElementById('lastUpdate').textContent = timeString;
+    }
+
+    // Export data to CSV
+    function exportData() {
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + "Sensor,Value,Unit,Trend\n"
+        + Object.keys(sensorData).map(key => 
+            `${key},${sensorData[key].value},${sensorData[key].unit},${sensorData[key].trend}`
+          ).join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `cement_plant_data_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Run AI scenario
+    function runScenario() {
+      const scenario = document.getElementById('scenarioSelect').value;
+      const targetTemp = parseFloat(document.getElementById('targetTemp').value);
+      const targetFuel = parseFloat(document.getElementById('targetFuel').value);
+      const targetProduction = parseFloat(document.getElementById('targetProduction').value);
+
+      // Simulate scenario execution
+      console.log(`Running scenario: ${scenario}`);
+      
+      // Update digital twin with target values
+      if (scenario === 'optimization') {
+        digitalData.temp3.value = targetTemp;
+        digitalData.load.value = targetProduction / 1.13;
+      }
+
+      // Show scenario feedback
+      alert(`Scenario "${scenario}" executed successfully!\nTargets: ${targetTemp}°C, ${targetFuel} kg/s, ${targetProduction}%`);
+    }
+
+    // Show sensor history modal
+    function showSensorHistory(event) {
+      const sensor = event.target.getAttribute('data-sensor');
+      const title = event.target.getAttribute('title');
+      
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalContent').innerHTML = `
+        <div style="margin-bottom:16px">
+          <strong>Current Value:</strong> ${event.target.getAttribute('data-value')}
+        </div>
+        <div style="margin-bottom:16px">
+          <strong>Historical Data (Last 24h):</strong>
+          <div style="height:200px;background:#f8f9fa;border-radius:8px;padding:16px;margin-top:8px">
+            <p style="text-align:center;color:#7f8c8d">Chart visualization would be rendered here</p>
+            <p style="text-align:center;color:#7f8c8d">Showing trends, anomalies, and predictions</p>
+          </div>
+        </div>
+        <div>
+          <strong>AI Insights:</strong>
+          <ul style="margin-top:8px;padding-left:20px">
+            <li>Value within normal operating range</li>
+            <li>Trend indicates stable operation</li>
+            <li>No immediate maintenance required</li>
+          </ul>
+        </div>
+      `;
+      
+      document.getElementById('sensorModal').style.display = 'flex';
+    }
+
+    // Close modal
+    function closeModal() {
+      document.getElementById('sensorModal').style.display = 'none';
+    }
+
+    // Toggle demo mode
+    function toggleDemoMode() {
+      const syncToggle = document.getElementById('syncToggle');
+      syncToggle.checked = !syncToggle.checked;
+      syncToggle.dispatchEvent(new Event('change'));
+      
+      // Add visual feedback
+      document.body.classList.add('diverge-flash');
+      setTimeout(() => {
+        document.body.classList.remove('diverge-flash');
+      }, 3000);
+    }
+
+    // Initialize when DOM is loaded
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

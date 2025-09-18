@@ -1,0 +1,9 @@
+# Minimal Requirements for Python 3.13 Compatibility
+# Core FastAPI backend without problematic dependencies
+
+fastapi==0.110.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.9
+python-dotenv==1.0.1
+pydantic==2.6.1
+typing-extensions==4.9.0

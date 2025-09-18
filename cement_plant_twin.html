@@ -1,0 +1,3038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Cement Plant Digital Twin - Kiln Monitoring System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Microsoft YaHei", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0f1428 100%);
+    color: #e8eaf6;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Top Bar */
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background: rgba(26, 31, 58, 0.95);
+    border-bottom: 1px solid rgba(116, 185, 255, 0.2);
+    backdrop-filter: blur(10px);
+  }
+  
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .brand-logo {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #74b9ff, #0984e3);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .status-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 14px;
+  }
+  
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Main Layout */
+  .main-container {
+    display: grid;
+    grid-template-columns: 380px 1fr 380px;
+    grid-template-rows: 1fr 80px;
+    height: calc(100vh - 60px);
+    gap: 0;
+  }
+
+  /* Left Panel - Production Data */
+  .left-panel {
+    background: rgba(26, 31, 58, 0.8);
+    border-right: 1px solid rgba(116, 185, 255, 0.2);
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  /* Right Panel - Operational Metrics */
+  .right-panel {
+    background: rgba(26, 31, 58, 0.8);
+    border-left: 1px solid rgba(116, 185, 255, 0.2);
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  /* Central 3D Area */
+  .center-area {
+    position: relative;
+    background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .center-header {
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(116, 185, 255, 0.2);
+  }
+
+  .center-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #74b9ff;
+  }
+
+  .center-controls {
+    display: flex;
+    gap: 12px;
+  }
+
+  .control-btn {
+    padding: 8px 16px;
+    background: rgba(116, 185, 255, 0.1);
+    border: 1px solid rgba(116, 185, 255, 0.3);
+    border-radius: 6px;
+    color: #74b9ff;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+  }
+
+  .control-btn:hover {
+    background: rgba(116, 185, 255, 0.2);
+    border-color: rgba(116, 185, 255, 0.5);
+  }
+
+  .control-btn.active {
+    background: rgba(116, 185, 255, 0.3);
+    border-color: #74b9ff;
+  }
+  
+  .play-btn {
+    background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+    color: #ffffff;
+    border: 1px solid rgba(0, 184, 148, 0.5);
+    font-weight: 600;
+  }
+  
+  .play-btn:hover {
+    background: linear-gradient(135deg, #00a085 0%, #00b894 100%);
+    transform: scale(1.05);
+  }
+  
+  .play-btn.playing {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    animation: pulse 2s infinite;
+  }
+  
+  .gemini-btn {
+    background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+    color: #ffffff;
+    border: 1px solid rgba(155, 89, 182, 0.5);
+    font-weight: 600;
+  }
+  
+  .gemini-btn:hover {
+    background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
+    transform: scale(1.05);
+  }
+  
+  .gemini-btn.loading {
+    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+
+  .webgl-container {
+    flex: 1;
+    position: relative;
+    background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+  }
+
+  .webgl-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .webgl-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Bottom Navigation */
+  .bottom-nav {
+    grid-column: 1 / -1;
+    background: rgba(26, 31, 58, 0.95);
+    border-top: 1px solid rgba(116, 185, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    padding: 0 20px;
+  }
+
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 12px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    color: #8b9dc3;
+  }
+
+  .nav-item:hover {
+    background: rgba(116, 185, 255, 0.1);
+    color: #74b9ff;
+  }
+
+  .nav-item.active {
+    background: rgba(116, 185, 255, 0.2);
+    color: #74b9ff;
+  }
+
+  .nav-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(116, 185, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  .nav-label {
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  /* Panel Sections */
+  .panel-section {
+    margin-bottom: 24px;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #74b9ff;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title::before {
+    content: '';
+    width: 4px;
+    height: 16px;
+    background: linear-gradient(135deg, #74b9ff, #0984e3);
+    border-radius: 2px;
+  }
+
+  /* Data Cards */
+  .data-card {
+    background: rgba(15, 20, 40, 0.6);
+    border: 1px solid rgba(116, 185, 255, 0.2);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .data-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .data-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #b8c5d6;
+  }
+
+  .data-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #74b9ff;
+  }
+
+  /* Charts and Gauges */
+  .chart-container {
+    height: 120px;
+    margin: 12px 0;
+    position: relative;
+  }
+
+  .gauge-container {
+    display: flex;
+    justify-content: space-around;
+    margin: 16px 0;
+  }
+
+  .gauge {
+    text-align: center;
+  }
+
+  .gauge-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 4px solid rgba(116, 185, 255, 0.2);
+    border-top: 4px solid #74b9ff;
+    margin: 0 auto 8px;
+    animation: spin 2s linear infinite;
+  }
+
+  .gauge-label {
+    font-size: 12px;
+    color: #8b9dc3;
+  }
+
+  .gauge-status {
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  .gauge-status.excellent { color: #00b894; }
+  .gauge-status.good { color: #fdcb6e; }
+  .gauge-status.poor { color: #e74c3c; }
+
+  /* Progress Bars */
+  .progress-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .progress-label {
+    font-size: 12px;
+    color: #8b9dc3;
+    flex: 1;
+  }
+
+  .progress-bar {
+    flex: 2;
+    height: 6px;
+    background: rgba(116, 185, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 0 12px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #74b9ff, #0984e3);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  .progress-value {
+    font-size: 12px;
+    color: #74b9ff;
+    font-weight: 600;
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* Donut Chart */
+  .donut-chart {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 16px auto;
+  }
+
+  .donut-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .donut-segment {
+    fill: none;
+    stroke-width: 20;
+    stroke-linecap: round;
+  }
+
+  .donut-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .donut-total {
+    font-size: 18px;
+    font-weight: 700;
+    color: #74b9ff;
+  }
+
+  .donut-label {
+    font-size: 10px;
+    color: #8b9dc3;
+  }
+
+  /* Status Indicators */
+  .status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 16px 0;
+  }
+
+  .status-item-card {
+    background: rgba(15, 20, 40, 0.6);
+    border: 1px solid rgba(116, 185, 255, 0.2);
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .status-count {
+    font-size: 20px;
+    font-weight: 700;
+    color: #74b9ff;
+  }
+
+  .status-label {
+    font-size: 10px;
+    color: #8b9dc3;
+    margin-top: 4px;
+  }
+
+  .status-normal { color: #00b894; }
+  .status-abnormal { color: #e74c3c; }
+
+  /* Animations */
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .pulse {
+    animation: pulse 2s infinite;
+  }
+
+  /* Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(15, 20, 40, 0.3);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(116, 185, 255, 0.3);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(116, 185, 255, 0.5);
+  }
+
+  /* Responsive Design */
+  @media (max-width: 1400px) {
+    .main-container {
+      grid-template-columns: 320px 1fr 320px;
+    }
+  }
+
+  @media (max-width: 1200px) {
+    .main-container {
+      grid-template-columns: 280px 1fr 280px;
+    }
+  }
+
+  /* Enhanced Tooltip */
+  .tooltip-3d {
+    position: absolute;
+    display: none;
+    padding: 12px;
+    background: rgba(15, 20, 40, 0.95);
+    color: white;
+    border: 1px solid rgba(116, 185, 255, 0.3);
+    border-radius: 8px;
+    pointer-events: none;
+    font-size: 13px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    z-index: 1500;
+    max-width: 200px;
+    backdrop-filter: blur(8px);
+  }
+
+  .tooltip-3d .sensor-name {
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #74b9ff;
+  }
+
+  .tooltip-3d .sensor-value {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .tooltip-3d .sensor-trend {
+    font-size: 11px;
+    opacity: 0.8;
+  }
+
+  /* 3D Modal */
+  .modal-3d {
+    position: fixed;
+    inset: 0;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 2000;
+    padding: 18px;
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-3d .content {
+    background: rgba(26, 31, 58, 0.95);
+    border: 1px solid rgba(116, 185, 255, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 800px;
+    width: 100%;
+    max-height: 85vh;
+    overflow: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-3d .sensor-3d-view {
+    width: 100%;
+    height: 300px;
+    background: rgba(15, 20, 40, 0.6);
+    border-radius: 8px;
+    margin: 12px 0;
+    position: relative;
+  }
+
+  .modal-3d .sensor-chart {
+    width: 100%;
+    height: 200px;
+    background: rgba(15, 20, 40, 0.6);
+    border: 1px solid rgba(116, 185, 255, 0.2);
+    border-radius: 8px;
+    margin: 12px 0;
+  }
+</style>
+</head>
+<body>
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="brand">
+      <div class="brand-logo">CementAI</div>
+      <div style="color: #8b9dc3; font-size: 14px;">Digital Twin Platform</div>
+    </div>
+    <div class="status-info">
+      <div class="status-item">
+        <span>🌡️</span>
+        <span id="currentTemp">21°C</span>
+      </div>
+      <div class="status-item">
+        <span>🕐</span>
+        <span id="currentTime">20:32</span>
+      </div>
+      <div class="status-item">
+        <span>📅</span>
+        <span id="currentDate">2023-01-18 Wednesday</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <div class="main-container">
+    <!-- Left Panel - Kiln Raw Materials & Process Data -->
+    <div class="left-panel">
+      <div class="panel-section">
+        <div class="section-title">Raw Material Composition</div>
+        
+        <div class="data-card">
+          <div class="data-header">
+            <div class="data-title">Raw Mill #1 Feed</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Limestone</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 42.86%"></div>
+            </div>
+            <div class="progress-value">42.86%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Clay</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Iron Ore</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Sandstone</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Fly Ash</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Alternative</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+        </div>
+
+        <div class="data-card">
+          <div class="data-header">
+            <div class="data-title">Raw Mill #2 Feed</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Limestone</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 42.86%"></div>
+            </div>
+            <div class="progress-value">42.86%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Clay</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Iron Ore</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Sandstone</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Fly Ash</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Alternative</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 11.43%"></div>
+            </div>
+            <div class="progress-value">11.43%</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Clinker Free Lime (f-CaO)</div>
+        <div class="data-card">
+          <div class="chart-container">
+            <canvas id="fcaoChart" width="300" height="120"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Clinker Mineral Composition</div>
+        <div class="data-card">
+          <div class="chart-container">
+            <canvas id="mineralChart" width="300" height="120"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Cement Fineness</div>
+        <div class="data-card">
+          <div class="data-header">
+            <div class="data-title">Cement Mill #1</div>
+          </div>
+          <div class="chart-container">
+            <canvas id="cement1Chart" width="300" height="80"></canvas>
+          </div>
+        </div>
+        <div class="data-card">
+          <div class="data-header">
+            <div class="data-title">Cement Mill #2</div>
+          </div>
+          <div class="chart-container">
+            <canvas id="cement2Chart" width="300" height="80"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Central 3D Area -->
+    <div class="center-area">
+      <div class="center-header">
+        <div class="center-title">Kiln Process Overview - Digital Twin</div>
+        <div class="center-controls">
+          <button class="control-btn" id="simulationBtn">Simulation Mode</button>
+          <button class="control-btn active" id="animationBtn">Process Animation</button>
+          <button class="control-btn play-btn" id="playSimulationBtn">▶️ Play Simulation</button>
+          <button class="control-btn gemini-btn" id="analyzeKilnBtn">🔍 Analyze Kiln</button>
+          <button class="control-btn gemini-btn" id="analyzeMillBtn">🔍 Analyze Mill</button>
+        </div>
+      </div>
+      
+      <div class="webgl-container">
+        <canvas id="mainCanvas" class="webgl-canvas"></canvas>
+        <div class="webgl-overlay">
+          <!-- Kiln Process Labels -->
+          <div style="position: absolute; top: 15%; left: 5%; color: #74b9ff; font-size: 11px; background: rgba(15, 20, 40, 0.9); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(116, 185, 255, 0.3);">
+            <strong>Preheater Tower</strong><br>Raw Material Preheating
+          </div>
+          <div style="position: absolute; top: 25%; left: 5%; color: #74b9ff; font-size: 11px; background: rgba(15, 20, 40, 0.9); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(116, 185, 255, 0.3);">
+            <strong>Precalciner</strong><br>Partial Decomposition
+          </div>
+          <div style="position: absolute; top: 45%; left: 5%; color: #74b9ff; font-size: 11px; background: rgba(15, 20, 40, 0.9); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(116, 185, 255, 0.3);">
+            <strong>Raw Material Homogenization</strong><br>Stabilize Kiln Feed
+          </div>
+          <div style="position: absolute; top: 60%; left: 5%; color: #74b9ff; font-size: 11px; background: rgba(15, 20, 40, 0.9); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(116, 185, 255, 0.3);">
+            <strong>Rotary Kiln</strong><br>Clinker Formation
+          </div>
+          <div style="position: absolute; top: 75%; left: 5%; color: #74b9ff; font-size: 11px; background: rgba(15, 20, 40, 0.9); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(116, 185, 255, 0.3);">
+            <strong>Cooler</strong><br>Clinker Cooling
+          </div>
+          <div style="position: absolute; top: 25%; right: 5%; color: #74b9ff; font-size: 11px; background: rgba(15, 20, 40, 0.9); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(116, 185, 255, 0.3);">
+            <strong>Cement Mill #1</strong><br>Grinding & Blending
+          </div>
+          <div style="position: absolute; top: 45%; right: 5%; color: #74b9ff; font-size: 11px; background: rgba(15, 20, 40, 0.9); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(116, 185, 255, 0.3);">
+            <strong>Cement Mill #2</strong><br>Grinding & Blending
+          </div>
+          <div style="position: absolute; top: 65%; right: 5%; color: #74b9ff; font-size: 11px; background: rgba(15, 20, 40, 0.9); padding: 6px 8px; border-radius: 4px; border: 1px solid rgba(116, 185, 255, 0.3);">
+            <strong>Storage Silos</strong><br>Cement Storage
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel - Kiln Performance & Quality Metrics -->
+    <div class="right-panel">
+      <div class="panel-section">
+        <div class="section-title">Process Stability</div>
+        <div class="data-card">
+          <div class="gauge-container">
+            <div class="gauge">
+              <div class="gauge-circle"></div>
+              <div class="gauge-label">Raw Mill #2</div>
+              <div class="gauge-status good">Good</div>
+            </div>
+            <div class="gauge">
+              <div class="gauge-circle"></div>
+              <div class="gauge-label">Raw Mill #1</div>
+              <div class="gauge-status excellent">Excellent</div>
+            </div>
+            <div class="gauge">
+              <div class="gauge-circle"></div>
+              <div class="gauge-label">Kiln System</div>
+              <div class="gauge-status good">Good</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Product Sales Distribution</div>
+        <div class="data-card">
+          <div class="donut-chart">
+            <svg class="donut-svg" viewBox="0 0 100 100">
+              <circle class="donut-segment" cx="50" cy="50" r="40" stroke="#74b9ff" stroke-dasharray="126 314" stroke-dashoffset="0"/>
+              <circle class="donut-segment" cx="50" cy="50" r="40" stroke="#00b894" stroke-dasharray="113 314" stroke-dashoffset="-126"/>
+              <circle class="donut-segment" cx="50" cy="50" r="40" stroke="#fdcb6e" stroke-dasharray="57 314" stroke-dashoffset="-239"/>
+              <circle class="donut-segment" cx="50" cy="50" r="40" stroke="#e74c3c" stroke-dasharray="57 314" stroke-dashoffset="-296"/>
+            </svg>
+            <div class="donut-center">
+              <div class="donut-total">100%</div>
+              <div class="donut-label">Total Sales</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; background: #74b9ff; border-radius: 2px;"></div>
+              <span style="font-size: 12px; color: #8b9dc3;">Cement PC42.5</span>
+              <span style="font-size: 12px; color: #74b9ff; font-weight: 600;">35%</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; background: #00b894; border-radius: 2px;"></div>
+              <span style="font-size: 12px; color: #8b9dc3;">Clinker</span>
+              <span style="font-size: 12px; color: #00b894; font-weight: 600;">29%</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; background: #fdcb6e; border-radius: 2px;"></div>
+              <span style="font-size: 12px; color: #8b9dc3;">Cement PO52.5</span>
+              <span style="font-size: 12px; color: #fdcb6e; font-weight: 600;">18%</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; background: #e74c3c; border-radius: 2px;"></div>
+              <span style="font-size: 12px; color: #8b9dc3;">Cement PO42.5</span>
+              <span style="font-size: 12px; color: #e74c3c; font-weight: 600;">18%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Raw Material Procurement</div>
+        <div class="data-card">
+          <div class="progress-item">
+            <div class="progress-label">Siliceous</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 14.63%"></div>
+            </div>
+            <div class="progress-value">14.63%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Ferrous</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 23.58%"></div>
+            </div>
+            <div class="progress-value">23.58%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Aluminous</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 23.58%"></div>
+            </div>
+            <div class="progress-value">23.58%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Limestone</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 14.63%"></div>
+            </div>
+            <div class="progress-value">14.63%</div>
+          </div>
+          <div class="progress-item">
+            <div class="progress-label">Alternative</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 23.58%"></div>
+            </div>
+            <div class="progress-value">23.58%</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Waste Heat Recovery</div>
+        <div class="data-card">
+          <div class="status-grid">
+            <div class="status-item-card">
+              <div class="status-count status-normal">43</div>
+              <div class="status-label">Normal</div>
+            </div>
+            <div class="status-item-card">
+              <div class="status-count status-abnormal">1</div>
+              <div class="status-label">Abnormal</div>
+            </div>
+          </div>
+          <div style="text-align: center; margin-top: 12px; font-size: 12px; color: #8b9dc3;">
+            Online Monitoring Class A Equipment (44 units)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+      <div class="nav-item">
+        <div class="nav-icon">⚡</div>
+        <div class="nav-label">Energy</div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">🔍</div>
+        <div class="nav-label">Quality</div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">⚙️</div>
+        <div class="nav-label">Power</div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">🛡️</div>
+        <div class="nav-label">Safety</div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">📍</div>
+        <div class="nav-label">Personnel</div>
+      </div>
+      <div class="nav-item active">
+        <div class="nav-icon">🏭</div>
+        <div class="nav-label">Process Overview</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enhanced 3D tooltip & modal -->
+  <div id="tooltip3d" class="tooltip-3d" aria-hidden="true">
+    <div class="sensor-name"></div>
+    <div class="sensor-value"></div>
+    <div class="sensor-trend"></div>
+  </div>
+
+  <div class="modal-3d" id="modal3d" aria-hidden="true">
+    <div class="content">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:800;font-size:18px;color: #74b9ff;">3D Sensor Analysis</div>
+        <div class="close" onclick="closeModal3d()" style="font-size:20px;cursor:pointer;color: #8b9dc3;">✖</div>
+      </div>
+      <div id="modal3dBody" style="margin-top:16px">
+        <div class="sensor-3d-view">
+          <canvas id="modal3dCanvas" style="width:100%;height:100%"></canvas>
+        </div>
+        <div class="sensor-chart">
+          <canvas id="modal3dChart" style="width:100%;height:100%"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ===============================
+   Enhanced Cement Plant Digital Twin
+   =============================== */
+const DATA_UPDATE_MS = 1000;
+const RENDER_POLL_MS = 250;
+
+// Global variables
+let mainScene = null;
+let modal3dScene = null;
+let isAnimationActive = false;
+let isSimulationPlaying = false;
+let simulationInterval = null;
+let currentSimulationIndex = 0;
+
+// Enhanced simulation variables
+let simulationMode = false;
+let userDefinedValues = {};
+let gasEmissionsOptimization = {
+  enabled: false,
+  targetNOx: 200, // mg/Nm³
+  targetCO2: 800, // kg/ton clinker
+  currentNOx: 245,
+  currentCO2: 850
+};
+let animationSpeed = 1;
+let heatAnimations = [];
+let particleAnimations = [];
+let materialFlowAnimations = [];
+
+// Enhanced sensor data with 3D positions
+const sensorData = {
+  // Kiln sensors (real) - with 3D positions [x, y, z]
+  temp1: { value:1245, unit:'°C', trend:'stable', history:[], position:[0, 22, 2], color:0xe74c3c },
+  temp2: { value:1850, unit:'°C', trend:'up', history:[], position:[0, 17, 2], color:0xff4757 },
+  temp3: { value:1120, unit:'°C', trend:'down', history:[], position:[0, 12, 2], color:0xff6b6b },
+  vibration: { value:2.3, unit:' mm/s', trend:'stable', history:[], position:[-8, 8, 1.5], color:0x74b9ff },
+  load: { value:87, unit:'%', trend:'up', history:[], position:[-8, 8, -1.5], color:0x00b894 },
+  emission: { value:245, unit:' mg/Nm³', trend:'down', history:[], position:[0, 25, 0], color:0xfd79a8 },
+  burning: { value:1450, unit:'°C', trend:'stable', history:[], position:[-8, 8, 0], color:0xff4757 },
+  cooler: { value:180, unit:'°C', trend:'stable', history:[], position:[-8, 2, 0], color:0x74b9ff },
+
+  // Mill sensors (real)
+  'mill-feed': { value:12.4, unit:' t/h', trend:'stable', history:[], position:[8, 2, -3], color:0x6a5acd },
+  'mill-pressure': { value:2.1, unit:' bar', trend:'stable', history:[], position:[8, 2, 3], color:0x00b894 },
+  'mill-particle': { value:12, unit:' µm', trend:'stable', history:[], position:[15, 4, 0], color:0xff6b6b },
+  'mill-eff': { value:78, unit:'%', trend:'stable', history:[], position:[15, 4, 3], color:0xfdcb6e }
+};
+
+/* Digital copy - used for digital rendering and accepts manual overrides */
+const digitalData = JSON.parse(JSON.stringify(sensorData));
+
+const kilnMetrics = { temperature:1450, fuelRate:45.2, production:98.5, efficiency:89.4 };
+const digitalMetrics = Object.assign({}, kilnMetrics);
+
+/* element ID map for panel updates */
+const elementMap = {
+  temp1:'temp-zone1', temp2:'temp-zone2', temp3:'temp-zone3',
+  vibration:'vibration-level', load:'motor-load', emission:'nox-emission',
+  'mill-feed':'mill-feed','mill-pressure':'mill-press','mill-particle':'mill-psd','mill-eff':'mill-eff'
+};
+
+/* Gemini API Configuration */
+const GEMINI_API_KEY = 'your_gemini_api_key_here';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+/* Gemini API Functions */
+async function callGeminiAPI(prompt) {
+  try {
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+  } catch (error) {
+    console.error('Error calling Gemini API:', error);
+    throw error;
+  }
+}
+
+function createKilnAnalysisPrompt() {
+  const currentTime = new Date().toLocaleString();
+  const kilnData = {
+    preheaterTemp: sensorData.temp1.value,
+    calcinerTemp: sensorData.temp2.value,
+    kilnInletTemp: sensorData.temp3.value,
+    burningZoneTemp: sensorData.burning.value,
+    coolerTemp: sensorData.cooler.value,
+    vibration: sensorData.vibration.value,
+    motorLoad: sensorData.load.value,
+    noxEmission: sensorData.emission.value,
+    kilnMetrics: kilnMetrics
+  };
+
+  return `As an expert cement plant process engineer, analyze the following kiln operation data and provide insights on potential issues and optimization opportunities:
+
+TIMESTAMP: ${currentTime}
+
+KILN OPERATION DATA:
+- Preheater Temperature: ${kilnData.preheaterTemp}°C
+- Calciner Temperature: ${kilnData.calcinerTemp}°C
+- Kiln Inlet Temperature: ${kilnData.kilnInletTemp}°C
+- Burning Zone Temperature: ${kilnData.burningZoneTemp}°C
+- Cooler Temperature: ${kilnData.coolerTemp}°C
+- Kiln Vibration: ${kilnData.vibration} mm/s
+- Motor Load: ${kilnData.motorLoad}%
+- NOx Emissions: ${kilnData.noxEmission} mg/Nm³
+
+KILN METRICS:
+- Temperature: ${kilnData.kilnMetrics.temperature}°C
+- Fuel Rate: ${kilnData.kilnMetrics.fuelRate} kg/s
+- Production: ${kilnData.kilnMetrics.production}%
+- Efficiency: ${kilnData.kilnMetrics.efficiency}%
+
+Please provide:
+1. Current operational status assessment
+2. Potential issues or anomalies detected
+3. Optimization recommendations for efficiency and quality
+4. Safety considerations
+5. Specific actionable steps for improvement
+
+Format your response in a clear, structured manner suitable for plant operators.`;
+}
+
+function createMillAnalysisPrompt() {
+  const currentTime = new Date().toLocaleString();
+  const millData = {
+    feedRate: sensorData['mill-feed'].value,
+    pressure: sensorData['mill-pressure'].value,
+    particleSize: sensorData['mill-particle'].value,
+    efficiency: sensorData['mill-eff'].value
+  };
+
+  return `As an expert cement plant process engineer specializing in grinding operations, analyze the following mill operation data and provide insights on potential issues and optimization opportunities:
+
+TIMESTAMP: ${currentTime}
+
+MILL OPERATION DATA:
+- Feed Rate: ${millData.feedRate} t/h
+- Mill Pressure: ${millData.pressure} bar
+- Particle Size Distribution: ${millData.particleSize} µm
+- Grinding Efficiency: ${millData.efficiency}%
+
+Please provide:
+1. Current mill performance assessment
+2. Potential issues with grinding efficiency or material quality
+3. Optimization recommendations for:
+   - Energy consumption reduction
+   - Product quality improvement
+   - Throughput optimization
+4. Material process considerations
+5. Specific actionable steps for improvement
+
+Format your response in a clear, structured manner suitable for plant operators.`;
+}
+
+async function analyzeKilnData() {
+  const button = document.getElementById('analyzeKilnBtn');
+  const originalText = button.textContent;
+  
+  try {
+    button.textContent = '🔄 Analyzing...';
+    button.classList.add('loading');
+    
+    const prompt = createKilnAnalysisPrompt();
+    const analysis = await callGeminiAPI(prompt);
+    
+    // Display the analysis in a modal
+    showAnalysisModal('Kiln Analysis', analysis);
+    
+  } catch (error) {
+    console.error('Error analyzing kiln data:', error);
+    alert('Error analyzing kiln data. Please try again.');
+  } finally {
+    button.textContent = originalText;
+    button.classList.remove('loading');
+  }
+}
+
+async function analyzeMillData() {
+  const button = document.getElementById('analyzeMillBtn');
+  const originalText = button.textContent;
+  
+  try {
+    button.textContent = '🔄 Analyzing...';
+    button.classList.add('loading');
+    
+    const prompt = createMillAnalysisPrompt();
+    const analysis = await callGeminiAPI(prompt);
+    
+    // Display the analysis in a modal
+    showAnalysisModal('Mill Analysis', analysis);
+    
+  } catch (error) {
+    console.error('Error analyzing mill data:', error);
+    alert('Error analyzing mill data. Please try again.');
+  } finally {
+    button.textContent = originalText;
+    button.classList.remove('loading');
+  }
+}
+
+function showAnalysisModal(title, content) {
+  // Create modal HTML
+  const modalHTML = `
+    <div id="analysisModal" class="analysis-modal">
+      <div class="analysis-content">
+        <div class="analysis-header">
+          <h2>${title}</h2>
+          <button class="close-btn" onclick="closeAnalysisModal()">✖</button>
+        </div>
+        <div class="analysis-body">
+          <pre>${content}</pre>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Add modal to page
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+  
+  // Add CSS for modal
+  if (!document.getElementById('analysisModalStyles')) {
+    const styles = `
+      <style id="analysisModalStyles">
+        .analysis-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+        }
+        
+        .analysis-content {
+          background: rgba(26, 31, 58, 0.95);
+          border: 1px solid rgba(116, 185, 255, 0.3);
+          border-radius: 12px;
+          width: 80%;
+          max-width: 800px;
+          max-height: 80%;
+          overflow: hidden;
+          backdrop-filter: blur(10px);
+        }
+        
+        .analysis-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 20px;
+          border-bottom: 1px solid rgba(116, 185, 255, 0.2);
+        }
+        
+        .analysis-header h2 {
+          color: #74b9ff;
+          margin: 0;
+          font-size: 20px;
+        }
+        
+        .close-btn {
+          background: none;
+          border: none;
+          color: #8b9dc3;
+          font-size: 24px;
+          cursor: pointer;
+          padding: 0;
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          transition: all 0.3s ease;
+        }
+        
+        .close-btn:hover {
+          background: rgba(116, 185, 255, 0.1);
+          color: #74b9ff;
+        }
+        
+        .analysis-body {
+          padding: 20px;
+          overflow-y: auto;
+          max-height: 60vh;
+        }
+        
+        .analysis-body pre {
+          color: #e8eaf6;
+          font-family: 'Courier New', monospace;
+          font-size: 14px;
+          line-height: 1.6;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          margin: 0;
+        }
+      </style>
+    `;
+    document.head.insertAdjacentHTML('beforeend', styles);
+  }
+}
+
+function closeAnalysisModal() {
+  const modal = document.getElementById('analysisModal');
+  if (modal) {
+    modal.remove();
+  }
+}
+
+/* ===============================
+   Enhanced Simulation Functions
+   =============================== */
+
+// User-defined value management
+function updateUserDefinedValue(sensorKey, value) {
+  userDefinedValues[sensorKey] = value;
+  if (simulationMode) {
+    sensorData[sensorKey].value = value;
+    updateSensorDisplay(sensorKey);
+  }
+}
+
+// Gas emissions optimization
+function optimizeGasEmissions() {
+  const currentNOx = sensorData.emission.value;
+  const currentTemp = sensorData.burning.value;
+  
+  // Calculate optimal temperature for emissions reduction
+  const optimalTemp = 1420; // Optimal burning zone temperature for low NOx
+  const tempDiff = Math.abs(currentTemp - optimalTemp);
+  
+  // Calculate emissions reduction potential
+  const noxReduction = Math.max(0, currentNOx - gasEmissionsOptimization.targetNOx);
+  const efficiencyGain = Math.max(0, 95 - kilnMetrics.efficiency);
+  
+  return {
+    currentNOx,
+    targetNOx: gasEmissionsOptimization.targetNOx,
+    noxReduction,
+    optimalTemp,
+    tempDiff,
+    efficiencyGain,
+    recommendations: generateEmissionsRecommendations(currentNOx, currentTemp, optimalTemp)
+  };
+}
+
+function generateEmissionsRecommendations(currentNOx, currentTemp, optimalTemp) {
+  const recommendations = [];
+  
+  if (currentNOx > gasEmissionsOptimization.targetNOx) {
+    recommendations.push("⚠️ NOx emissions exceed target. Consider:");
+    recommendations.push("  • Reducing burning zone temperature");
+    recommendations.push("  • Optimizing air-fuel ratio");
+    recommendations.push("  • Implementing staged combustion");
+  }
+  
+  if (Math.abs(currentTemp - optimalTemp) > 30) {
+    recommendations.push("🌡️ Temperature optimization needed:");
+    recommendations.push(`  • Current: ${currentTemp}°C, Optimal: ${optimalTemp}°C`);
+    recommendations.push("  • Adjust fuel feed rate");
+    recommendations.push("  • Optimize secondary air flow");
+  }
+  
+  if (kilnMetrics.efficiency < 90) {
+    recommendations.push("⚡ Efficiency improvement opportunities:");
+    recommendations.push("  • Optimize kiln speed");
+    recommendations.push("  • Improve material distribution");
+    recommendations.push("  • Reduce heat losses");
+  }
+  
+  return recommendations;
+}
+
+// Enhanced animation functions
+function createHeatAnimations() {
+  if (!mainScene) return;
+  
+  // Clear existing animations
+  heatAnimations.forEach(anim => {
+    if (mainScene.scene.children.includes(anim)) {
+      mainScene.scene.remove(anim);
+    }
+  });
+  heatAnimations = [];
+  
+  // Create heat wave effects around kiln
+  const heatGeometry = new THREE.RingGeometry(2.0, 2.8, 32); // Larger rings for better visibility
+  const heatMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff4757,
+    transparent: true,
+    opacity: 0.5, // More visible
+    side: THREE.DoubleSide
+  });
+  
+  // Create heat rings at different positions along the vertical kiln (12 units tall)
+  // Kiln extends from (-8, 2, 0) to (-8, 14, 0) along Y-axis
+  const kilnYPositions = [3, 6, 9, 12]; // More positions along kiln height (Y-axis)
+  
+  for (let i = 0; i < 4; i++) {
+    const heatRing = new THREE.Mesh(heatGeometry, heatMaterial);
+    // Position along the kiln height (Y-axis), kiln center is at (-8, 8, 0)
+    heatRing.position.set(-8, kilnYPositions[i], 0);
+    heatRing.rotation.z = 0; // No rotation - vertical kiln orientation
+    heatRing.userData = { 
+      type: 'heat',
+      index: i,
+      startTime: Date.now() + i * 400
+    };
+    mainScene.scene.add(heatRing);
+    heatAnimations.push(heatRing);
+  }
+}
+
+function createParticleAnimations() {
+  if (!mainScene) return;
+  
+  // Clear existing animations
+  particleAnimations.forEach(anim => {
+    if (mainScene.scene.children.includes(anim)) {
+      mainScene.scene.remove(anim);
+    }
+  });
+  particleAnimations = [];
+  
+  // Create particle system for emissions
+  const particleCount = 100;
+  const particleGeometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+  const colors = new Float32Array(particleCount * 3);
+  
+  for (let i = 0; i < particleCount; i++) {
+    // Position particles around the emission stack at (0, 25, 0) - top of preheater tower
+    positions[i * 3] = (Math.random() - 0.5) * 2; // X spread around stack
+    positions[i * 3 + 1] = Math.random() * 10 + 25; // Y range from 25-35 (rising from stack)
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 2; // Z spread around stack
+    
+    // Realistic emission colors (brownish/orange for NOx)
+    colors[i * 3] = 0.8 + Math.random() * 0.2; // Red
+    colors[i * 3 + 1] = 0.3 + Math.random() * 0.4; // Green
+    colors[i * 3 + 2] = 0.1 + Math.random() * 0.2; // Blue
+  }
+  
+  particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  
+  const particleMaterial = new THREE.PointsMaterial({
+    size: 0.1,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.6
+  });
+  
+  const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+  particleSystem.position.set(0, 25, 0); // Emission stack position
+  particleSystem.userData = { type: 'emissions' };
+  mainScene.scene.add(particleSystem);
+  particleAnimations.push(particleSystem);
+}
+
+function createMaterialFlowAnimations() {
+  if (!mainScene) return;
+  
+  // Clear existing animations
+  materialFlowAnimations.forEach(anim => {
+    if (mainScene.scene.children.includes(anim)) {
+      mainScene.scene.remove(anim);
+    }
+  });
+  materialFlowAnimations = [];
+  
+  // Create multiple material flow lines for different processes
+  
+  // 1. Raw material flow from preheater to kiln (following actual connection path)
+  const preheaterFlow = new THREE.BufferGeometry();
+  const preheaterPoints = [];
+  for (let i = 0; i <= 30; i++) {
+    const t = i / 30;
+    // Follow the exact connection path: (0,5,0) -> (-4,5,0) -> (-8,14,0)
+    if (t <= 0.33) {
+      const t1 = t / 0.33; // 0 to 1 for first segment
+      const x = t1 * -4;
+      const y = 5;
+      const z = 0;
+      preheaterPoints.push(x, y, z);
+    } else if (t <= 0.66) {
+      const t2 = (t - 0.33) / 0.33; // 0 to 1 for second segment
+      const x = -4 + t2 * -4;
+      const y = 5 + t2 * 9; // Rise to top of vertical kiln
+      const z = 0;
+      preheaterPoints.push(x, y, z);
+    } else {
+      const t3 = (t - 0.66) / 0.34; // 0 to 1 for final segment
+      const x = -8;
+      const y = 14;
+      const z = 0;
+      preheaterPoints.push(x, y, z);
+    }
+  }
+  preheaterFlow.setAttribute('position', new THREE.Float32BufferAttribute(preheaterPoints, 3));
+  
+  const preheaterMaterial = new THREE.LineBasicMaterial({
+    color: 0x74b9ff,
+    transparent: true,
+    opacity: 0.7
+  });
+  
+  const preheaterLine = new THREE.Line(preheaterFlow, preheaterMaterial);
+  preheaterLine.userData = { type: 'materialFlow', path: 'preheater' };
+  mainScene.scene.add(preheaterLine);
+  materialFlowAnimations.push(preheaterLine);
+  
+  // 2. Clinker flow from kiln to cooler (vertical drop from bottom of vertical kiln)
+  const clinkerFlow = new THREE.BufferGeometry();
+  const clinkerPoints = [];
+  for (let i = 0; i <= 15; i++) {
+    const t = i / 15;
+    const x = -8; // Kiln position
+    const y = 2 - t * 2; // From bottom of vertical kiln (y=2) to ground (y=0)
+    const z = 0; // Center of kiln
+    clinkerPoints.push(x, y, z);
+  }
+  clinkerFlow.setAttribute('position', new THREE.Float32BufferAttribute(clinkerPoints, 3));
+  
+  const clinkerMaterial = new THREE.LineBasicMaterial({
+    color: 0xff6b6b,
+    transparent: true,
+    opacity: 0.6
+  });
+  
+  const clinkerLine = new THREE.Line(clinkerFlow, clinkerMaterial);
+  clinkerLine.userData = { type: 'materialFlow', path: 'clinker' };
+  mainScene.scene.add(clinkerLine);
+  materialFlowAnimations.push(clinkerLine);
+  
+  // 3. Cement flow to mills (following actual connection paths from vertical kiln)
+  // Mill 1 connection: (-8,2,0) -> (0,2,-1.5) -> (8,2,-3) - from bottom of vertical kiln
+  const cementFlow1 = new THREE.BufferGeometry();
+  const cementPoints1 = [];
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    if (t <= 0.5) {
+      const t1 = t * 2;
+      const x = -8 + t1 * 8;
+      const y = 2; // Bottom of vertical kiln
+      const z = t1 * -1.5;
+      cementPoints1.push(x, y, z);
+    } else {
+      const t2 = (t - 0.5) * 2;
+      const x = 0 + t2 * 8;
+      const y = 2; // Bottom of vertical kiln
+      const z = -1.5 + t2 * -1.5;
+      cementPoints1.push(x, y, z);
+    }
+  }
+  cementFlow1.setAttribute('position', new THREE.Float32BufferAttribute(cementPoints1, 3));
+  
+  const cementMaterial1 = new THREE.LineBasicMaterial({
+    color: 0x00b894,
+    transparent: true,
+    opacity: 0.5
+  });
+  
+  const cementLine1 = new THREE.Line(cementFlow1, cementMaterial1);
+  cementLine1.userData = { type: 'materialFlow', path: 'cement1' };
+  mainScene.scene.add(cementLine1);
+  materialFlowAnimations.push(cementLine1);
+  
+  // Mill 2 connection: (-8,2,0) -> (0,2,1.5) -> (8,2,3) - from bottom of vertical kiln
+  const cementFlow2 = new THREE.BufferGeometry();
+  const cementPoints2 = [];
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    if (t <= 0.5) {
+      const t1 = t * 2;
+      const x = -8 + t1 * 8;
+      const y = 2; // Bottom of vertical kiln
+      const z = t1 * 1.5;
+      cementPoints2.push(x, y, z);
+    } else {
+      const t2 = (t - 0.5) * 2;
+      const x = 0 + t2 * 8;
+      const y = 2; // Bottom of vertical kiln
+      const z = 1.5 + t2 * 1.5;
+      cementPoints2.push(x, y, z);
+    }
+  }
+  cementFlow2.setAttribute('position', new THREE.Float32BufferAttribute(cementPoints2, 3));
+  
+  const cementMaterial2 = new THREE.LineBasicMaterial({
+    color: 0x00b894,
+    transparent: true,
+    opacity: 0.5
+  });
+  
+  const cementLine2 = new THREE.Line(cementFlow2, cementMaterial2);
+  cementLine2.userData = { type: 'materialFlow', path: 'cement2' };
+  mainScene.scene.add(cementLine2);
+  materialFlowAnimations.push(cementLine2);
+  
+  // Add material flow particles for better visibility
+  createMaterialFlowParticles();
+  
+  // Add mill grinding particle effects
+  createMillGrindingAnimations();
+}
+
+function createMaterialFlowParticles() {
+  if (!mainScene) return;
+  
+  // Preheater to kiln flow particles
+  const preheaterParticles = new THREE.BufferGeometry();
+  const preheaterParticlePositions = new Float32Array(30 * 3);
+  const preheaterParticleColors = new Float32Array(30 * 3);
+  
+  for (let i = 0; i < 30; i++) {
+    const t = i / 30;
+    // Follow the same path as the flow line
+    if (t <= 0.33) {
+      const t1 = t / 0.33;
+      preheaterParticlePositions[i * 3] = t1 * -4;
+      preheaterParticlePositions[i * 3 + 1] = 5;
+      preheaterParticlePositions[i * 3 + 2] = 0;
+    } else if (t <= 0.66) {
+      const t2 = (t - 0.33) / 0.33;
+      preheaterParticlePositions[i * 3] = -4 + t2 * -4;
+      preheaterParticlePositions[i * 3 + 1] = 5 + t2 * 9;
+      preheaterParticlePositions[i * 3 + 2] = 0;
+    } else {
+      preheaterParticlePositions[i * 3] = -8;
+      preheaterParticlePositions[i * 3 + 1] = 14;
+      preheaterParticlePositions[i * 3 + 2] = 0;
+    }
+    
+    // Blue color for raw material
+    preheaterParticleColors[i * 3] = 0.4 + Math.random() * 0.3;
+    preheaterParticleColors[i * 3 + 1] = 0.6 + Math.random() * 0.4;
+    preheaterParticleColors[i * 3 + 2] = 0.8 + Math.random() * 0.2;
+  }
+  
+  preheaterParticles.setAttribute('position', new THREE.BufferAttribute(preheaterParticlePositions, 3));
+  preheaterParticles.setAttribute('color', new THREE.BufferAttribute(preheaterParticleColors, 3));
+  
+  const preheaterParticleMaterial = new THREE.PointsMaterial({
+    size: 0.08,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.6
+  });
+  
+  const preheaterParticleSystem = new THREE.Points(preheaterParticles, preheaterParticleMaterial);
+  preheaterParticleSystem.userData = { type: 'materialFlowParticles', path: 'preheater' };
+  mainScene.scene.add(preheaterParticleSystem);
+  particleAnimations.push(preheaterParticleSystem);
+}
+
+function createPreheaterHeatEffects() {
+  if (!mainScene) return;
+  
+  // Create heat effects for different zones of the preheater tower
+  const preheaterZones = [
+    { y: 22, color: 0xff6b35, size: 2.5 }, // Top zone
+    { y: 17, color: 0xff8c42, size: 2.3 }, // Calciner zone
+    { y: 12, color: 0xffa726, size: 2.1 }  // Inlet zone
+  ];
+  
+  preheaterZones.forEach((zone, index) => {
+    const heatGeometry = new THREE.RingGeometry(zone.size, zone.size + 0.3, 32);
+    const heatMaterial = new THREE.MeshBasicMaterial({
+      color: zone.color,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.DoubleSide
+    });
+    
+    const heatRing = new THREE.Mesh(heatGeometry, heatMaterial);
+    heatRing.position.set(0, zone.y, 0); // Preheater tower position
+    heatRing.userData = { 
+      type: 'preheaterHeat',
+      zone: index,
+      startTime: Date.now() + index * 300
+    };
+    mainScene.scene.add(heatRing);
+    heatAnimations.push(heatRing);
+  });
+}
+
+function createBurningZoneEffect() {
+  if (!mainScene) return;
+  
+  // Create a more intense heat effect for the burning zone
+  const burningGeometry = new THREE.RingGeometry(2.2, 3.0, 32); // Larger burning zone
+  const burningMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff4757,
+    transparent: true,
+    opacity: 0.7, // More visible
+    side: THREE.DoubleSide
+  });
+  
+  const burningRing = new THREE.Mesh(burningGeometry, burningMaterial);
+  burningRing.position.set(-8, 8, 0); // Burning zone at vertical kiln center
+  burningRing.rotation.z = 0; // No rotation - vertical kiln orientation
+  burningRing.userData = { 
+    type: 'burningZone',
+    startTime: Date.now()
+  };
+  mainScene.scene.add(burningRing);
+  heatAnimations.push(burningRing);
+}
+
+function createMillGrindingAnimations() {
+  if (!mainScene) return;
+  
+  // Mill 1 grinding particles
+  const mill1Particles = new THREE.BufferGeometry();
+  const mill1Positions = new Float32Array(50 * 3);
+  const mill1Colors = new Float32Array(50 * 3);
+  
+  for (let i = 0; i < 50; i++) {
+    mill1Positions[i * 3] = (Math.random() - 0.5) * 2; // X spread around mill
+    mill1Positions[i * 3 + 1] = Math.random() * 2 + 1; // Y range around mill
+    mill1Positions[i * 3 + 2] = (Math.random() - 0.5) * 2; // Z spread around mill
+    
+    mill1Colors[i * 3] = 0.7 + Math.random() * 0.3; // Grayish
+    mill1Colors[i * 3 + 1] = 0.7 + Math.random() * 0.3;
+    mill1Colors[i * 3 + 2] = 0.7 + Math.random() * 0.3;
+  }
+  
+  mill1Particles.setAttribute('position', new THREE.BufferAttribute(mill1Positions, 3));
+  mill1Particles.setAttribute('color', new THREE.BufferAttribute(mill1Colors, 3));
+  
+  const mill1Material = new THREE.PointsMaterial({
+    size: 0.05,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.4
+  });
+  
+  const mill1ParticleSystem = new THREE.Points(mill1Particles, mill1Material);
+  mill1ParticleSystem.position.set(8, 2, -3); // Mill 1 position
+  mill1ParticleSystem.userData = { type: 'millGrinding', mill: 1 };
+  mainScene.scene.add(mill1ParticleSystem);
+  particleAnimations.push(mill1ParticleSystem);
+  
+  // Mill 2 grinding particles
+  const mill2Particles = new THREE.BufferGeometry();
+  const mill2Positions = new Float32Array(50 * 3);
+  const mill2Colors = new Float32Array(50 * 3);
+  
+  for (let i = 0; i < 50; i++) {
+    mill2Positions[i * 3] = (Math.random() - 0.5) * 2;
+    mill2Positions[i * 3 + 1] = Math.random() * 2 + 1;
+    mill2Positions[i * 3 + 2] = (Math.random() - 0.5) * 2;
+    
+    mill2Colors[i * 3] = 0.7 + Math.random() * 0.3;
+    mill2Colors[i * 3 + 1] = 0.7 + Math.random() * 0.3;
+    mill2Colors[i * 3 + 2] = 0.7 + Math.random() * 0.3;
+  }
+  
+  mill2Particles.setAttribute('position', new THREE.BufferAttribute(mill2Positions, 3));
+  mill2Particles.setAttribute('color', new THREE.BufferAttribute(mill2Colors, 3));
+  
+  const mill2Material = new THREE.PointsMaterial({
+    size: 0.05,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.4
+  });
+  
+  const mill2ParticleSystem = new THREE.Points(mill2Particles, mill2Material);
+  mill2ParticleSystem.position.set(8, 2, 3); // Mill 2 position
+  mill2ParticleSystem.userData = { type: 'millGrinding', mill: 2 };
+  mainScene.scene.add(mill2ParticleSystem);
+  particleAnimations.push(mill2ParticleSystem);
+}
+
+function updateAnimations() {
+  const time = Date.now() * 0.001;
+  
+  // Update heat animations
+  heatAnimations.forEach((heat, index) => {
+    if (heat.userData.type === 'heat') {
+      const elapsed = (time * 1000 - heat.userData.startTime) * 0.001;
+      heat.scale.setScalar(1 + Math.sin(elapsed * 2) * 0.2);
+      heat.material.opacity = 0.4 + Math.sin(elapsed * 3) * 0.2;
+      heat.rotation.z = elapsed * 0.5;
+    } else if (heat.userData.type === 'burningZone') {
+      const elapsed = (time * 1000 - heat.userData.startTime) * 0.001;
+      heat.scale.setScalar(1 + Math.sin(elapsed * 3) * 0.3);
+      heat.material.opacity = 0.6 + Math.sin(elapsed * 4) * 0.3;
+      heat.rotation.z = elapsed * 1.0;
+      // Intense red color pulsing
+      heat.material.color.setHex(0xff4757 + Math.floor(Math.sin(elapsed * 5) * 0x1000));
+    } else if (heat.userData.type === 'preheaterHeat') {
+      const elapsed = (time * 1000 - heat.userData.startTime) * 0.001;
+      heat.scale.setScalar(1 + Math.sin(elapsed * 1.5) * 0.15);
+      heat.material.opacity = 0.3 + Math.sin(elapsed * 2) * 0.15;
+      heat.rotation.z = elapsed * 0.3;
+    }
+  });
+  
+  // Update particle animations
+  particleAnimations.forEach(particles => {
+    if (particles.userData.type === 'emissions') {
+      const positions = particles.geometry.attributes.position.array;
+      for (let i = 1; i < positions.length; i += 3) {
+        positions[i] += 0.02 * animationSpeed;
+        if (positions[i] > 35) {
+          positions[i] = 25; // Reset to emission stack height
+        }
+      }
+      particles.geometry.attributes.position.needsUpdate = true;
+          } else if (particles.userData.type === 'millGrinding') {
+        // Mill grinding particles - rotate around mill
+        const positions = particles.geometry.attributes.position.array;
+        const mill = particles.userData.mill;
+        const time = Date.now() * 0.001;
+        
+        for (let i = 0; i < positions.length; i += 3) {
+          // Create circular motion around mill
+          const angle = time + (i / 3) * 0.1;
+          const radius = 1 + Math.random() * 0.5;
+          positions[i] = Math.cos(angle) * radius;
+          positions[i + 2] = Math.sin(angle) * radius;
+          positions[i + 1] = Math.sin(time * 2 + i) * 0.5 + 1; // Vertical oscillation
+        }
+        particles.geometry.attributes.position.needsUpdate = true;
+      } else if (particles.userData.type === 'materialFlowParticles') {
+        // Material flow particles - subtle pulsing
+        const positions = particles.geometry.attributes.position.array;
+        const time = Date.now() * 0.001;
+        
+        for (let i = 0; i < positions.length; i += 3) {
+          // Add subtle movement to show flow
+          positions[i] += Math.sin(time + i) * 0.01;
+          positions[i + 1] += Math.cos(time + i) * 0.01;
+          positions[i + 2] += Math.sin(time * 2 + i) * 0.01;
+        }
+        particles.geometry.attributes.position.needsUpdate = true;
+      }
+  });
+  
+  // Update material flow animations
+  materialFlowAnimations.forEach(flow => {
+    if (flow.userData.type === 'materialFlow') {
+      const path = flow.userData.path;
+      let baseOpacity = 0.3;
+      let pulseSpeed = 2;
+      
+      switch (path) {
+        case 'preheater':
+          baseOpacity = 0.5;
+          pulseSpeed = 1.5;
+          break;
+        case 'clinker':
+          baseOpacity = 0.4;
+          pulseSpeed = 2.5;
+          break;
+        case 'cement1':
+        case 'cement2':
+          baseOpacity = 0.3;
+          pulseSpeed = 1.8;
+          break;
+      }
+      
+      flow.material.opacity = baseOpacity + Math.sin(time * pulseSpeed) * 0.3;
+    }
+  });
+}
+
+// Simulation control functions
+function startSimulation() {
+  simulationMode = true;
+  isSimulationPlaying = true;
+  
+  // Create animations
+  createHeatAnimations();
+  createParticleAnimations();
+  createMaterialFlowAnimations();
+  
+  // Start simulation loop
+  simulationInterval = setInterval(() => {
+    if (simulationMode && isSimulationPlaying) {
+      updateSimulationData();
+      updateAnimations();
+    }
+  }, 1000 / animationSpeed);
+  
+  updateSimulationUI();
+}
+
+function stopSimulation() {
+  simulationMode = false;
+  isSimulationPlaying = false;
+  
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+  
+  // Clear animations
+  heatAnimations.forEach(anim => {
+    if (mainScene && mainScene.scene.children.includes(anim)) {
+      mainScene.scene.remove(anim);
+    }
+  });
+  heatAnimations = [];
+  
+  particleAnimations.forEach(anim => {
+    if (mainScene && mainScene.scene.children.includes(anim)) {
+      mainScene.scene.remove(anim);
+    }
+  });
+  particleAnimations = [];
+  
+  materialFlowAnimations.forEach(anim => {
+    if (mainScene && mainScene.scene.children.includes(anim)) {
+      mainScene.scene.remove(anim);
+    }
+  });
+  materialFlowAnimations = [];
+  
+  updateSimulationUI();
+}
+
+function updateSimulationData() {
+  // Update sensor data with realistic variations
+  Object.keys(sensorData).forEach(key => {
+    const sensor = sensorData[key];
+    const baseValue = userDefinedValues[key] || sensor.value;
+    const variation = (Math.random() - 0.5) * 0.05; // ±2.5%
+    sensor.value = Math.round((baseValue * (1 + variation)) * 10) / 10;
+    
+    // Update trends
+    const history = sensor.history;
+    if (history.length > 0) {
+      const lastValue = history[history.length - 1];
+      sensor.trend = sensor.value > lastValue ? 'up' : sensor.value < lastValue ? 'down' : 'stable';
+    }
+    
+    history.push(sensor.value);
+    if (history.length > 240) history.shift();
+    
+    updateSensorDisplay(key);
+  });
+  
+  // Update kiln metrics
+  Object.keys(kilnMetrics).forEach(key => {
+    const baseValue = kilnMetrics[key];
+    const variation = (Math.random() - 0.5) * 0.02; // ±1%
+    kilnMetrics[key] = Math.round((baseValue * (1 + variation)) * 10) / 10;
+  });
+  
+  // Update gas emissions optimization
+  gasEmissionsOptimization.currentNOx = sensorData.emission.value;
+  gasEmissionsOptimization.currentCO2 = 800 + (sensorData.emission.value - 200) * 2;
+}
+
+function updateSensorDisplay(sensorKey) {
+  const elementId = elementMap[sensorKey];
+  if (elementId) {
+    const element = document.getElementById(elementId);
+    if (element) {
+      const sensor = sensorData[sensorKey];
+      const trendSymbol = sensor.trend === 'up' ? '↑' : sensor.trend === 'down' ? '↓' : '→';
+      element.innerHTML = `${sensor.value}${sensor.unit} <span style="color: #74b9ff; margin-left: 6px;">${trendSymbol}</span>`;
+    }
+  }
+}
+
+function updateSimulationUI() {
+  const simulationBtn = document.getElementById('simulationBtn');
+  const playBtn = document.getElementById('playSimulationBtn');
+  const animationBtn = document.getElementById('animationBtn');
+  
+  if (simulationMode) {
+    simulationBtn.classList.add('active');
+    animationBtn.classList.remove('active');
+    playBtn.textContent = isSimulationPlaying ? '⏸️ Pause Simulation' : '▶️ Resume Simulation';
+    playBtn.classList.add('playing');
+  } else {
+    simulationBtn.classList.remove('active');
+    playBtn.textContent = '▶️ Play Simulation';
+    playBtn.classList.remove('playing');
+  }
+}
+
+// Create simulation control panel
+function createSimulationPanel() {
+  const panelHTML = `
+    <div id="simulationPanel" class="simulation-panel" style="display: none;">
+      <div class="panel-header">
+        <h3>🔬 Simulation Controls</h3>
+        <button class="close-btn" onclick="closeSimulationPanel()">✖</button>
+      </div>
+      
+      <div class="panel-section">
+        <h4>🎛️ User-Defined Values</h4>
+        <div class="input-group">
+          <label>Burning Zone Temp (°C):</label>
+          <input type="number" id="userBurningTemp" value="${sensorData.burning.value}" 
+                 onchange="updateUserDefinedValue('burning', this.value)">
+        </div>
+        <div class="input-group">
+          <label>Motor Load (%):</label>
+          <input type="number" id="userMotorLoad" value="${sensorData.load.value}" 
+                 onchange="updateUserDefinedValue('load', this.value)">
+        </div>
+        <div class="input-group">
+          <label>Feed Rate (t/h):</label>
+          <input type="number" id="userFeedRate" value="${sensorData['mill-feed'].value}" 
+                 onchange="updateUserDefinedValue('mill-feed', this.value)">
+        </div>
+      </div>
+      
+      <div class="panel-section">
+        <h4>🌿 Gas Emissions Optimization</h4>
+        <div class="optimization-status">
+          <div class="status-item">
+            <span>Current NOx:</span>
+            <span id="currentNox">${gasEmissionsOptimization.currentNOx} mg/Nm³</span>
+          </div>
+          <div class="status-item">
+            <span>Target NOx:</span>
+            <span>${gasEmissionsOptimization.targetNOx} mg/Nm³</span>
+          </div>
+          <div class="status-item">
+            <span>Status:</span>
+            <span id="emissionsStatus" style="color: ${gasEmissionsOptimization.currentNOx <= gasEmissionsOptimization.targetNOx ? '#00b894' : '#e74c3c'}">
+              ${gasEmissionsOptimization.currentNOx <= gasEmissionsOptimization.targetNOx ? '✅ Optimal' : '⚠️ High'}
+            </span>
+          </div>
+        </div>
+        <button class="optimize-btn" onclick="analyzeEmissionsOptimization()">
+          🔍 Analyze Emissions
+        </button>
+        <button class="optimize-btn" onclick="analyzeEmissionsOptimization()" style="margin-top: 10px; background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);">
+          🤖 AI Emissions Analysis
+        </button>
+      </div>
+      
+      <div class="panel-section">
+        <h4>⚡ Animation Speed</h4>
+        <input type="range" id="animationSpeed" min="0.5" max="3" step="0.5" value="${animationSpeed}"
+               onchange="animationSpeed = parseFloat(this.value)">
+        <span id="speedValue">${animationSpeed}x</span>
+      </div>
+    </div>
+  `;
+  
+  // Add panel to page
+  document.body.insertAdjacentHTML('beforeend', panelHTML);
+  
+  // Add CSS for panel
+  if (!document.getElementById('simulationPanelStyles')) {
+    const styles = `
+      <style id="simulationPanelStyles">
+        .simulation-panel {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: rgba(26, 31, 58, 0.95);
+          border: 1px solid rgba(116, 185, 255, 0.3);
+          border-radius: 12px;
+          width: 400px;
+          max-height: 80vh;
+          overflow-y: auto;
+          z-index: 1000;
+          backdrop-filter: blur(10px);
+        }
+        
+        .panel-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 20px;
+          border-bottom: 1px solid rgba(116, 185, 255, 0.2);
+        }
+        
+        .panel-header h3 {
+          color: #74b9ff;
+          margin: 0;
+        }
+        
+        .panel-section {
+          padding: 20px;
+          border-bottom: 1px solid rgba(116, 185, 255, 0.1);
+        }
+        
+        .panel-section h4 {
+          color: #74b9ff;
+          margin: 0 0 15px 0;
+        }
+        
+        .input-group {
+          margin-bottom: 15px;
+        }
+        
+        .input-group label {
+          display: block;
+          color: #b8c5d6;
+          margin-bottom: 5px;
+          font-size: 14px;
+        }
+        
+        .input-group input {
+          width: 100%;
+          padding: 8px 12px;
+          background: rgba(15, 20, 40, 0.6);
+          border: 1px solid rgba(116, 185, 255, 0.3);
+          border-radius: 6px;
+          color: #e8eaf6;
+          font-size: 14px;
+        }
+        
+        .optimization-status {
+          background: rgba(15, 20, 40, 0.6);
+          padding: 15px;
+          border-radius: 8px;
+          margin-bottom: 15px;
+        }
+        
+        .status-item {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 8px;
+          font-size: 14px;
+        }
+        
+        .status-item:last-child {
+          margin-bottom: 0;
+        }
+        
+        .optimize-btn {
+          width: 100%;
+          padding: 10px;
+          background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 600;
+        }
+        
+        .optimize-btn:hover {
+          background: linear-gradient(135deg, #00a085 0%, #00b894 100%);
+        }
+      </style>
+    `;
+    document.head.insertAdjacentHTML('beforeend', styles);
+  }
+}
+
+function closeSimulationPanel() {
+  const panel = document.getElementById('simulationPanel');
+  if (panel) {
+    panel.style.display = 'none';
+  }
+}
+
+function showSimulationPanel() {
+  const panel = document.getElementById('simulationPanel');
+  if (panel) {
+    panel.style.display = 'block';
+  } else {
+    createSimulationPanel();
+    document.getElementById('simulationPanel').style.display = 'block';
+  }
+}
+
+async function analyzeEmissionsOptimization() {
+  const optimization = optimizeGasEmissions();
+  const analysis = `🌿 Gas Emissions Optimization Analysis
+
+Current Status:
+• NOx Emissions: ${optimization.currentNOx} mg/Nm³
+• Target NOx: ${optimization.targetNOx} mg/Nm³
+• Reduction Potential: ${optimization.noxReduction} mg/Nm³
+• Optimal Temperature: ${optimization.optimalTemp}°C
+• Current Temperature: ${sensorData.burning.value}°C
+• Temperature Difference: ${optimization.tempDiff}°C
+
+Recommendations:
+${optimization.recommendations.join('\n')}
+
+Potential Benefits:
+• Emissions Reduction: ${optimization.noxReduction} mg/Nm³
+• Efficiency Gain: ${optimization.efficiencyGain}%
+• Cost Savings: $${Math.round(optimization.noxReduction * 0.5)}/hour`;
+
+  showAnalysisModal('Emissions Optimization Analysis', analysis);
+}
+
+/* UI refs */
+const tooltip3d = document.getElementById('tooltip3d');
+const modal3d = document.getElementById('modal3d');
+const modal3dBody = document.getElementById('modal3dBody');
+
+let syncEnabled = true;
+let stickyOverrides = {}; // sensor -> value if user keeps sticky
+let stickyFlag = false;
+
+/* initialize histories with a few points */
+Object.keys(sensorData).forEach(k=>{
+  for(let i=0;i<30;i++){
+    const base = sensorData[k].value;
+    const jitter = (Math.random()-0.5)*(sensorData[k].unit.includes('°C')?10:0.3);
+    sensorData[k].history.push(Math.round((base + jitter)*10)/10);
+  }
+});
+
+/* ===============================
+   Enhanced Cement Plant 3D Scene
+   =============================== */
+function initWebGLScenes() {
+  // Initialize main cement plant scene
+  mainScene = new CementPlantScene('mainCanvas');
+  mainScene.start();
+  
+  // Initialize time and date updates
+  updateDateTime();
+  setInterval(updateDateTime, 1000);
+  
+  // Initialize charts
+  initCharts();
+}
+
+class CementPlantScene {
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(75, this.canvas.clientWidth / this.canvas.clientHeight, 0.1, 1000);
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
+    this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
+    this.renderer.setClearColor(0x0a0e27, 0);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    
+    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+    this.controls.enableZoom = true;
+    this.controls.enablePan = true;
+    this.controls.maxDistance = 50;
+    this.controls.minDistance = 10;
+    
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
+    this.sensors = new Map();
+    
+    this.setupScene();
+    this.setupLighting();
+    this.createCementPlant();
+    this.createSensors();
+    this.setupEventListeners();
+  }
+  
+  setupScene() {
+    this.scene.background = new THREE.Color(0x0a0e27);
+    this.camera.position.set(15, 20, 15); // Better angle to see vertical kiln
+    this.controls.target.set(0, 8, 0); // Focus on kiln center
+  }
+  
+  setupLighting() {
+    // Ambient light
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+    this.scene.add(ambientLight);
+    
+    // Main directional light
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(20, 20, 10);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    this.scene.add(directionalLight);
+    
+    // Additional fill light
+    const fillLight = new THREE.DirectionalLight(0x74b9ff, 0.3);
+    fillLight.position.set(-10, 10, -10);
+    this.scene.add(fillLight);
+  }
+  
+  createCementPlant() {
+    // Preheater tower (main tower)
+    const towerGeometry = new THREE.CylinderGeometry(2, 3, 25, 8);
+    const towerMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x2c3e50,
+      transparent: true,
+      opacity: 0.8
+    });
+    this.tower = new THREE.Mesh(towerGeometry, towerMaterial);
+    this.tower.position.set(0, 12.5, 0);
+    this.tower.castShadow = true;
+    this.tower.receiveShadow = true;
+    this.scene.add(this.tower);
+    
+    // Add glowing sections to tower
+    for (let i = 0; i < 5; i++) {
+      const glowGeometry = new THREE.CylinderGeometry(2.1, 3.1, 4, 8);
+      const glowMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0xff6b35,
+        transparent: true,
+        opacity: 0.6,
+        emissive: 0xff6b35,
+        emissiveIntensity: 0.3
+      });
+      const glowSection = new THREE.Mesh(glowGeometry, glowMaterial);
+      glowSection.position.set(0, 8 + i * 3, 0);
+      this.scene.add(glowSection);
+    }
+    
+    // Rotary kiln (vertical orientation as in real cement plants)
+    const kilnGeometry = new THREE.CylinderGeometry(1.5, 1.5, 12, 16);
+    const kilnMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x34495e,
+      transparent: true,
+      opacity: 0.7
+    });
+    this.kiln = new THREE.Mesh(kilnGeometry, kilnMaterial);
+    this.kiln.position.set(-8, 8, 0); // Centered vertically, kiln extends from y=2 to y=14
+    this.kiln.rotation.z = 0; // No rotation - vertical orientation
+    this.kiln.castShadow = true;
+    this.kiln.receiveShadow = true;
+    this.scene.add(this.kiln);
+    
+    // Add visual indicator for kiln orientation (debug)
+    const indicatorGeometry = new THREE.CylinderGeometry(0.1, 0.1, 15, 8);
+    const indicatorMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const indicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
+    indicator.position.set(-8, 8, 2); // Next to kiln
+    this.scene.add(indicator);
+    
+    // Kiln supports (vertical orientation)
+    for (let i = 0; i < 3; i++) {
+      const supportGeometry = new THREE.BoxGeometry(0.5, 0.5, 3);
+      const supportMaterial = new THREE.MeshPhongMaterial({ color: 0x2c3e50 });
+      const support = new THREE.Mesh(supportGeometry, supportMaterial);
+      support.position.set(-8, 2 + i * 4, 0); // Supports along vertical kiln
+      this.scene.add(support);
+    }
+    
+    // Grinding mills
+    const millGeometry = new THREE.CylinderGeometry(1, 1, 4, 12);
+    const millMaterial = new THREE.MeshPhongMaterial({ color: 0x7f8c8d });
+    
+    this.mill1 = new THREE.Mesh(millGeometry, millMaterial);
+    this.mill1.position.set(8, 2, -3);
+    this.mill1.castShadow = true;
+    this.scene.add(this.mill1);
+    
+    this.mill2 = new THREE.Mesh(millGeometry, millMaterial);
+    this.mill2.position.set(8, 2, 3);
+    this.mill2.castShadow = true;
+    this.scene.add(this.mill2);
+    
+    // Storage silos
+    const siloGeometry = new THREE.CylinderGeometry(1.5, 1.5, 8, 12);
+    const siloMaterial = new THREE.MeshPhongMaterial({ color: 0x95a5a6 });
+    
+    for (let i = 0; i < 4; i++) {
+      const silo = new THREE.Mesh(siloGeometry, siloMaterial);
+      silo.position.set(15, 4, (i - 1.5) * 3);
+      silo.castShadow = true;
+      this.scene.add(silo);
+    }
+    
+    // Conveyor belts and pipes (simplified as lines)
+    this.createConnections();
+    
+    // Ground plane
+    const groundGeometry = new THREE.PlaneGeometry(50, 50);
+    const groundMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x1a1f3a,
+      transparent: true,
+      opacity: 0.5
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    this.scene.add(ground);
+  }
+  
+  createConnections() {
+    // Material flow connections
+    const connectionMaterial = new THREE.LineBasicMaterial({ color: 0x74b9ff, opacity: 0.6, transparent: true });
+    
+    // Tower to kiln connection (vertical kiln)
+    const towerToKilnGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 5, 0),
+      new THREE.Vector3(-4, 5, 0),
+      new THREE.Vector3(-8, 14, 0) // Connect to top of vertical kiln
+    ]);
+    const towerToKiln = new THREE.Line(towerToKilnGeometry, connectionMaterial);
+    this.scene.add(towerToKiln);
+    
+    // Kiln to mills connections (vertical kiln)
+    const kilnToMill1Geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-8, 2, 0), // Bottom of vertical kiln
+      new THREE.Vector3(0, 2, -1.5),
+      new THREE.Vector3(8, 2, -3)
+    ]);
+    const kilnToMill1 = new THREE.Line(kilnToMill1Geometry, connectionMaterial);
+    this.scene.add(kilnToMill1);
+    
+    const kilnToMill2Geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-8, 2, 0), // Bottom of vertical kiln
+      new THREE.Vector3(0, 2, 1.5),
+      new THREE.Vector3(8, 2, 3)
+    ]);
+    const kilnToMill2 = new THREE.Line(kilnToMill2Geometry, connectionMaterial);
+    this.scene.add(kilnToMill2);
+  }
+  
+  createSensors() {
+    // Comprehensive kiln sensors with detailed names
+    const sensorPositions = [
+      { pos: [0, 22, 2], name: 'Preheater Temp', type: 'temp1', description: 'Preheater Zone Temperature' },
+      { pos: [0, 17, 2], name: 'Calciner Temp', type: 'temp2', description: 'Precalciner Zone Temperature' },
+      { pos: [0, 12, 2], name: 'Kiln Inlet Temp', type: 'temp3', description: 'Kiln Inlet Temperature' },
+      { pos: [-8, 8, 1.5], name: 'Kiln Vibration', type: 'vibration', description: 'Rotary Kiln Vibration' },
+      { pos: [-8, 8, -1.5], name: 'Motor Load', type: 'load', description: 'Kiln Drive Motor Load' },
+      { pos: [0, 25, 0], name: 'NOx Emission', type: 'emission', description: 'Nitrogen Oxide Emissions' },
+      { pos: [-8, 8, 0], name: 'Burning Zone', type: 'burning', description: 'Burning Zone Temperature' },
+      { pos: [-8, 2, 0], name: 'Cooler Temp', type: 'cooler', description: 'Clinker Cooler Temperature' },
+      { pos: [8, 2, -3], name: 'Mill #1 Feed', type: 'mill-feed', description: 'Cement Mill #1 Feed Rate' },
+      { pos: [8, 2, 3], name: 'Mill #2 Feed', type: 'mill-pressure', description: 'Cement Mill #2 Feed Rate' },
+      { pos: [15, 4, 0], name: 'Silo Level', type: 'mill-particle', description: 'Storage Silo Level' },
+      { pos: [15, 4, 3], name: 'Mill Efficiency', type: 'mill-eff', description: 'Grinding Mill Efficiency' }
+    ];
+    
+    sensorPositions.forEach(sensor => {
+      const geometry = new THREE.SphereGeometry(0.2, 16, 16);
+      const material = new THREE.MeshPhongMaterial({ 
+        color: 0x74b9ff,
+        emissive: 0x74b9ff,
+        emissiveIntensity: 0.3
+      });
+      
+      const sensorMesh = new THREE.Mesh(geometry, material);
+      sensorMesh.position.set(...sensor.pos);
+      sensorMesh.userData = { name: sensor.name, type: sensor.type, description: sensor.description };
+      
+      this.sensors.set(sensor.type, sensorMesh);
+      this.scene.add(sensorMesh);
+      
+      // Add pulsing animation
+      this.addPulseAnimation(sensorMesh);
+    });
+  }
+  
+  addPulseAnimation(sensorMesh) {
+    const originalScale = sensorMesh.scale.clone();
+    const pulse = () => {
+      const time = Date.now() * 0.003;
+      const scale = 1 + Math.sin(time) * 0.2;
+      sensorMesh.scale.setScalar(scale);
+    };
+    this.pulseAnimations = this.pulseAnimations || [];
+    this.pulseAnimations.push(pulse);
+  }
+  
+  setupEventListeners() {
+    this.canvas.addEventListener('mousemove', (event) => this.onMouseMove(event));
+    this.canvas.addEventListener('click', (event) => this.onClick(event));
+    this.canvas.addEventListener('mouseleave', () => this.onMouseLeave());
+  }
+  
+  onMouseMove(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const intersects = this.raycaster.intersectObjects(Array.from(this.sensors.values()));
+    
+    if (intersects.length > 0) {
+      const sensor = intersects[0].object;
+      this.showTooltip(sensor, event);
+    } else {
+      this.hideTooltip();
+    }
+  }
+  
+  onClick(event) {
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const intersects = this.raycaster.intersectObjects(Array.from(this.sensors.values()));
+    
+    if (intersects.length > 0) {
+      const sensor = intersects[0].object;
+      this.openSensorModal(sensor.userData.type);
+    }
+  }
+  
+  onMouseLeave() {
+    this.hideTooltip();
+  }
+  
+  showTooltip(sensor, event) {
+    const sensorKey = sensor.userData.type;
+    const data = sensorData[sensorKey];
+    if (!data) return;
+    
+    const trendSymbol = data.trend === 'up' ? '↑' : data.trend === 'down' ? '↓' : '→';
+    
+    tooltip3d.querySelector('.sensor-name').textContent = sensor.userData.name;
+    tooltip3d.querySelector('.sensor-value').textContent = `${data.value}${data.unit}`;
+    tooltip3d.querySelector('.sensor-trend').textContent = `${sensor.userData.description} - Trend: ${trendSymbol} ${data.trend}`;
+    
+    tooltip3d.style.left = (event.pageX + 10) + 'px';
+    tooltip3d.style.top = (event.pageY - 10) + 'px';
+    tooltip3d.style.display = 'block';
+  }
+  
+  hideTooltip() {
+    tooltip3d.style.display = 'none';
+  }
+  
+  openSensorModal(sensorKey) {
+    openSensorModal3d(sensorKey);
+  }
+  
+  animate() {
+    // Rotate vertical kiln around Y-axis (like real rotary kiln)
+    this.kiln.rotation.y += 0.01;
+    
+    // Rotate mills
+    this.mill1.rotation.x += 0.02;
+    this.mill2.rotation.x += 0.02;
+    
+    // Update pulse animations
+    if (this.pulseAnimations) {
+      this.pulseAnimations.forEach(pulse => pulse());
+    }
+    
+    // Update enhanced animations if active
+    if (isAnimationActive || simulationMode) {
+      updateAnimations();
+    }
+    
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+  
+  start() {
+    const animate = () => {
+      requestAnimationFrame(animate);
+      this.animate();
+    };
+    animate();
+  }
+}
+
+/* ===============================
+   Utility Functions
+   =============================== */
+function updateDateTime() {
+  const now = new Date();
+  const temp = document.getElementById('currentTemp');
+  const time = document.getElementById('currentTime');
+  const date = document.getElementById('currentDate');
+  
+  if (temp) temp.textContent = '21°C';
+  if (time) time.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  if (date) date.textContent = now.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'long' });
+}
+
+function initCharts() {
+  // Initialize f-cao chart
+  const fcaoCanvas = document.getElementById('fcaoChart');
+  if (fcaoCanvas) {
+    const ctx = fcaoCanvas.getContext('2d');
+    drawLineChart(ctx, fcaoCanvas.width, fcaoCanvas.height, [0, 20, 40, 60, 80, 100], '#74b9ff');
+  }
+  
+  // Initialize mineral composition chart
+  const mineralCanvas = document.getElementById('mineralChart');
+  if (mineralCanvas) {
+    const ctx = mineralCanvas.getContext('2d');
+    drawMultiLineChart(ctx, mineralCanvas.width, mineralCanvas.height, ['C3S', 'C2S', 'C3A', 'C4AF']);
+  }
+  
+  // Initialize cement fineness charts
+  const cement1Canvas = document.getElementById('cement1Chart');
+  if (cement1Canvas) {
+    const ctx = cement1Canvas.getContext('2d');
+    drawDualLineChart(ctx, cement1Canvas.width, cement1Canvas.height, '45um', '80um');
+  }
+  
+  const cement2Canvas = document.getElementById('cement2Chart');
+  if (cement2Canvas) {
+    const ctx = cement2Canvas.getContext('2d');
+    drawDualLineChart(ctx, cement2Canvas.width, cement2Canvas.height, '45um', '80um');
+  }
+}
+
+function drawLineChart(ctx, width, height, data, color) {
+  ctx.clearRect(0, 0, width, height);
+  
+  // Draw grid
+  ctx.strokeStyle = 'rgba(116, 185, 255, 0.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 10; i++) {
+    const y = (i / 10) * height;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+  
+  // Draw line
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  data.forEach((value, index) => {
+    const x = (index / (data.length - 1)) * width;
+    const y = height - (value / 100) * height;
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  ctx.stroke();
+}
+
+function drawMultiLineChart(ctx, width, height, labels) {
+  ctx.clearRect(0, 0, width, height);
+  
+  const colors = ['#74b9ff', '#00b894', '#fdcb6e', '#e74c3c'];
+  const data = [
+    [2.5, 2.8, 2.3, 2.7, 2.9, 2.6],
+    [1.8, 1.6, 1.9, 1.7, 1.5, 1.8],
+    [0.8, 0.9, 0.7, 0.8, 0.9, 0.8],
+    [1.2, 1.1, 1.3, 1.2, 1.0, 1.1]
+  ];
+  
+  data.forEach((series, index) => {
+    ctx.strokeStyle = colors[index];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    series.forEach((value, pointIndex) => {
+      const x = (pointIndex / (series.length - 1)) * width;
+      const y = height - (value / 4) * height;
+      if (pointIndex === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+  });
+}
+
+function drawDualLineChart(ctx, width, height, label1, label2) {
+  ctx.clearRect(0, 0, width, height);
+  
+  const data1 = [3.2, 3.5, 3.1, 3.3, 3.4, 3.2];
+  const data2 = [1.8, 1.9, 1.7, 1.8, 1.9, 1.8];
+  
+  // Draw first line
+  ctx.strokeStyle = '#74b9ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  data1.forEach((value, index) => {
+    const x = (index / (data1.length - 1)) * width;
+    const y = height - (value / 5) * height;
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  ctx.stroke();
+  
+  // Draw second line
+  ctx.strokeStyle = '#00b894';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  data2.forEach((value, index) => {
+    const x = (index / (data2.length - 1)) * width;
+    const y = height - (value / 5) * height;
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  ctx.stroke();
+}
+
+/* ===============================
+   Enhanced 3D Modal Functions
+   =============================== */
+function openSensorModal3d(sensorKey) {
+  const data = sensorData[sensorKey];
+  const digData = digitalData[sensorKey];
+  
+  modal3dBody.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div>
+        <h3 style="margin-bottom:10px;color: #74b9ff;">${prettyName(sensorKey)}</h3>
+        <div style="background:rgba(15, 20, 40, 0.6);padding:15px;border-radius:8px;border:1px solid rgba(116, 185, 255, 0.2);">
+          <div style="margin-bottom:8px;color: #b8c5d6;"><strong>Real Value:</strong> ${data.value}${data.unit}</div>
+          <div style="margin-bottom:8px;color: #b8c5d6;"><strong>Digital Value:</strong> ${digData ? digData.value + digData.unit : 'N/A'}</div>
+          <div style="margin-bottom:8px;color: #b8c5d6;"><strong>Trend:</strong> ${data.trend}</div>
+          <div style="color: #b8c5d6;"><strong>Status:</strong> <span style="color:${data.trend === 'up' ? '#00b894' : data.trend === 'down' ? '#e74c3c' : '#fdcb6e'}">${data.trend}</span></div>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin-bottom:10px;color: #74b9ff;">3D Visualization</h3>
+        <div class="sensor-3d-view">
+          <canvas id="modal3dCanvas" style="width:100%;height:100%"></canvas>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-bottom:10px;color: #74b9ff;">Historical Data</h3>
+      <div class="sensor-chart">
+        <canvas id="modal3dChart" style="width:100%;height:100%"></canvas>
+      </div>
+    </div>
+  `;
+  
+  modal3d.style.display = 'flex';
+  modal3d.setAttribute('aria-hidden', 'false');
+  
+  // Initialize 3D modal scene
+  initModal3dScene(sensorKey);
+  
+  // Initialize chart
+  initModalChart(sensorKey);
+}
+
+function initModal3dScene(sensorKey) {
+  const canvas = document.getElementById('modal3dCanvas');
+  if (!canvas) return;
+  
+  modal3dScene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  renderer.setClearColor(0x0a0e27);
+  
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+  modal3dScene.add(ambientLight);
+  
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  directionalLight.position.set(5, 5, 5);
+  modal3dScene.add(directionalLight);
+  
+  // Create focused sensor visualization
+  const sensor = sensorData[sensorKey];
+  const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+  const material = new THREE.MeshPhongMaterial({ 
+    color: sensor.color,
+    emissive: sensor.color,
+    emissiveIntensity: 0.3
+  });
+  
+  const sensorMesh = new THREE.Mesh(geometry, material);
+  modal3dScene.add(sensorMesh);
+  
+  // Add particle effects around sensor
+  const particleGeometry = new THREE.BufferGeometry();
+  const particleCount = 100;
+  const positions = new Float32Array(particleCount * 3);
+  
+  for (let i = 0; i < particleCount * 3; i += 3) {
+    positions[i] = (Math.random() - 0.5) * 3;
+    positions[i + 1] = (Math.random() - 0.5) * 3;
+    positions[i + 2] = (Math.random() - 0.5) * 3;
+  }
+  
+  particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  
+  const particleMaterial = new THREE.PointsMaterial({
+    color: sensor.color,
+    size: 0.03,
+    transparent: true,
+    opacity: 0.6
+  });
+  
+  const particles = new THREE.Points(particleGeometry, particleMaterial);
+  modal3dScene.add(particles);
+  
+  camera.position.set(0, 0, 3);
+  
+  // Animation
+  const animate = () => {
+    requestAnimationFrame(animate);
+    
+    sensorMesh.rotation.x += 0.01;
+    sensorMesh.rotation.y += 0.01;
+    particles.rotation.x += 0.005;
+    particles.rotation.y += 0.005;
+    
+    renderer.render(modal3dScene, camera);
+  };
+  animate();
+}
+
+function initModalChart(sensorKey) {
+  const canvas = document.getElementById('modal3dChart');
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext('2d');
+  const data = sensorData[sensorKey];
+  const history = data.history.slice(-50); // Last 50 points
+  
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+  
+  // Clear canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  if (history.length < 2) return;
+  
+  const min = Math.min(...history);
+  const max = Math.max(...history);
+  const range = (max - min) || 1;
+  
+  // Draw grid
+  ctx.strokeStyle = 'rgba(116, 185, 255, 0.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 10; i++) {
+    const y = (i / 10) * canvas.height;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+  
+  // Draw line
+  ctx.strokeStyle = '#74b9ff';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  
+  history.forEach((value, index) => {
+    const x = (index / (history.length - 1)) * canvas.width;
+    const y = canvas.height - ((value - min) / range) * canvas.height;
+    
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  
+  ctx.stroke();
+  
+  // Draw current value
+  const lastValue = history[history.length - 1];
+  const lastX = canvas.width;
+  const lastY = canvas.height - ((lastValue - min) / range) * canvas.height;
+  
+  ctx.fillStyle = '#74b9ff';
+  ctx.beginPath();
+  ctx.arc(lastX - 10, lastY, 5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw value text
+  ctx.fillStyle = '#e8eaf6';
+  ctx.font = '14px sans-serif';
+  ctx.fillText(`${lastValue}${data.unit}`, lastX - 80, lastY - 10);
+}
+
+function closeModal3d() {
+  modal3d.style.display = 'none';
+  modal3d.setAttribute('aria-hidden', 'true');
+  modal3dScene = null;
+}
+
+function prettyName(k){
+  const map = {
+    temp1:'Preheater Zone Temperature',
+    temp2:'Precalciner Zone Temperature', 
+    temp3:'Kiln Inlet Temperature',
+    vibration:'Rotary Kiln Vibration',
+    load:'Kiln Drive Motor Load',
+    emission:'Nitrogen Oxide Emissions',
+    burning:'Burning Zone Temperature',
+    cooler:'Clinker Cooler Temperature',
+    'mill-feed':'Cement Mill #1 Feed Rate',
+    'mill-pressure':'Cement Mill #2 Feed Rate',
+    'mill-particle':'Storage Silo Level',
+    'mill-eff':'Grinding Mill Efficiency'
+  };
+  return map[k] || k;
+}
+
+/* ===============================
+   Event Listeners
+   =============================== */
+document.querySelectorAll('.close').forEach(n=>n.addEventListener('click',closeModal3d));
+modal3d.addEventListener('click',(e)=>{ if (e.target === modal3d) closeModal3d(); });
+
+// Control button event listeners
+document.getElementById('simulationBtn')?.addEventListener('click', () => {
+  simulationMode = !simulationMode;
+  if (simulationMode) {
+    document.getElementById('simulationBtn').classList.add('active');
+    document.getElementById('animationBtn').classList.remove('active');
+    showSimulationPanel();
+  } else {
+    document.getElementById('simulationBtn').classList.remove('active');
+    stopSimulation();
+  }
+});
+
+document.getElementById('animationBtn')?.addEventListener('click', () => {
+  isAnimationActive = !isAnimationActive;
+  if (isAnimationActive) {
+    document.getElementById('animationBtn').classList.add('active');
+    document.getElementById('simulationBtn').classList.remove('active');
+    // Start process animations
+    createHeatAnimations();
+    createParticleAnimations();
+    createMaterialFlowAnimations();
+    
+    // Start animation loop
+    const animateProcess = () => {
+      if (isAnimationActive) {
+        updateAnimations();
+        requestAnimationFrame(animateProcess);
+      }
+    };
+    animateProcess();
+  } else {
+    document.getElementById('animationBtn').classList.remove('active');
+    // Stop animations
+    heatAnimations.forEach(anim => {
+      if (mainScene && mainScene.scene.children.includes(anim)) {
+        mainScene.scene.remove(anim);
+      }
+    });
+    heatAnimations = [];
+    
+    particleAnimations.forEach(anim => {
+      if (mainScene && mainScene.scene.children.includes(anim)) {
+        mainScene.scene.remove(anim);
+      }
+    });
+    particleAnimations = [];
+    
+    materialFlowAnimations.forEach(anim => {
+      if (mainScene && mainScene.scene.children.includes(anim)) {
+        mainScene.scene.remove(anim);
+      }
+    });
+    materialFlowAnimations = [];
+  }
+});
+
+// Play simulation button event listener
+document.getElementById('playSimulationBtn')?.addEventListener('click', () => {
+  if (!simulationMode) {
+    simulationMode = true;
+    document.getElementById('simulationBtn').classList.add('active');
+    document.getElementById('animationBtn').classList.remove('active');
+  }
+  
+  if (isSimulationPlaying) {
+    isSimulationPlaying = false;
+    if (simulationInterval) {
+      clearInterval(simulationInterval);
+      simulationInterval = null;
+    }
+  } else {
+    startSimulation();
+  }
+  
+  updateSimulationUI();
+});
+
+// Gemini API button event listeners
+document.getElementById('analyzeKilnBtn')?.addEventListener('click', analyzeKilnData);
+document.getElementById('analyzeMillBtn')?.addEventListener('click', analyzeMillData);
+
+// Navigation event listeners
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+    item.classList.add('active');
+  });
+});
+
+/* ===============================
+   Data Update Loop
+   =============================== */
+let dataTimer = null;
+function updateDataTick(){
+  // Real sensors simulate small jitter
+  Object.keys(sensorData).forEach(k=>{
+    const d = sensorData[k];
+    const variation = (Math.random() - 0.5) * 0.02; // ±1%
+    let newValue = d.value * (1 + variation);
+    d.value = Math.round(newValue * 10) / 10;
+    d.trend = variation > 0.008 ? 'up' : variation < -0.008 ? 'down' : 'stable';
+    d.history.push(d.value);
+    if (d.history.length > 240) d.history.shift();
+  });
+
+  // metrics jitter
+  Object.keys(kilnMetrics).forEach(m=>{
+    const varM = (Math.random() - 0.5) * 0.01;
+    kilnMetrics[m] = Math.round(kilnMetrics[m] * (1 + varM) * 10) / 10;
+  });
+
+  // if sync is ON, digital follows real
+  if (syncEnabled) {
+    Object.keys(sensorData).forEach(k=>{
+      if (stickyOverrides[k] !== undefined) {
+        // leave digital as sticky
+      } else {
+        digitalData[k].value = sensorData[k].value;
+        digitalData[k].trend = sensorData[k].trend;
+        digitalData[k].history.push(digitalData[k].value);
+        if (digitalData[k].history.length > 240) digitalData[k].history.shift();
+      }
+    });
+    Object.keys(kilnMetrics).forEach(m=>{
+      if (!stickyOverrides[m]) digitalMetrics[m] = kilnMetrics[m];
+    });
+  }
+}
+
+function startDataLoop(ms=DATA_UPDATE_MS){
+  if (dataTimer) clearInterval(dataTimer);
+  updateDataTick(); // initial
+  dataTimer = setInterval(updateDataTick, ms);
+}
+
+/* ===============================
+   Initialization
+   =============================== */
+document.addEventListener('DOMContentLoaded', () => {
+  initWebGLScenes();
+  startDataLoop(DATA_UPDATE_MS);
+});
+
+/* ===============================
+   Export Functions
+   =============================== */
+window.openSensorModal = openSensorModal3d;
+window.closeModal3d = closeModal3d;
+window.analyzeKilnData = analyzeKilnData;
+window.analyzeMillData = analyzeMillData;
+window.closeAnalysisModal = closeAnalysisModal;
+window.startSimulation = startSimulation;
+window.stopSimulation = stopSimulation;
+window.updateUserDefinedValue = updateUserDefinedValue;
+window.analyzeEmissionsOptimization = analyzeEmissionsOptimization;
+window.showSimulationPanel = showSimulationPanel;
+window.closeSimulationPanel = closeSimulationPanel;
+window.optimizeGasEmissions = optimizeGasEmissions;
+</script>
+</body>
+</html>
